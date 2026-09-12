@@ -50,14 +50,15 @@ export class StorageService {
         }
         return target;
     }
-    async upload({ buffer, mimeType = "application/octet-stream", folder = "gallery", }) {
+    async upload({ buffer, mimeType = "application/octet-stream", folder = "gallery", filename }) {
         this.validateKey(folder);
         const media = detectMedia(buffer);
         if (!media || (mimeType.startsWith("image/") && !media.mimeType.startsWith("image/"))) {
             throw new HttpError(400, "Choose a supported image or audio file", "INVALID_FILE_TYPE");
         }
         mimeType = media.mimeType;
-        const key = `${folder}/${randomUUID()}.${media.ext}`;
+        const name = filename ? this.validateKey(filename) : `${randomUUID()}.${media.ext}`;
+        const key = `${folder}/${name}`;
         if (this.s3Client && this.env.R2_BUCKET_NAME) {
             try {
                 await this.s3Client.send(new PutObjectCommand({

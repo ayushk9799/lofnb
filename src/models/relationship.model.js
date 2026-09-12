@@ -35,6 +35,10 @@ const relationshipSchema = new Schema({
     chatLease: { token: String, expiresAt: Date },
     lastMessageAt: { type: Date },
     lastInitiatedAt: { type: Date },
+    userLastReadSequence: { type: Number, default: 0, min: 0 },
+    userLastReadAt: { type: Date },
+    companionLastReadSequence: { type: Number, default: 0, min: 0 },
+    companionLastReadAt: { type: Date },
     nextSequence: { type: Number, default: 0, min: 0, select: false },
 }, { timestamps: true });
 relationshipSchema.index({ userId: 1, characterId: 1 }, { unique: true });

@@ -2,7 +2,7 @@
 
 Author 8–12 examples per character in the catalog's `dialogueExamples` array. Each entry has `situation`, `user`, `assistant`, optional `keywords`, and optional `stages` (new, friends, close, romantic). Supported situations: greeting, disagreement, misunderstanding, excitement, vulnerability, boundaries, ordinary. Include everyday exchanges as well as emotional moments. Examples should demonstrate voice rather than repeat biographical facts or a single catchphrase.
 
-The local selector ranks current-message cues and word matches, with recent history as a weaker signal. It inserts at most three relevant demonstrations within an estimated 650-token budget, excluding examples restricted to other relationship stages. Unrelated queries may select none. Initiated messages do not select user-response examples. This is a heuristic, not a semantic intent classifier; add evaluation cases when tuning it.
+The local selector ranks current-message cues and word matches, with recent history as a weaker signal. It inserts at most one relevant demonstration within an estimated 220-token budget, excluding examples restricted to other relationship stages. Unrelated queries may select none. Initiated messages do not select user-response examples. This is a heuristic, not a semantic intent classifier; add evaluation cases when tuning it.
 
 Examples appear in a labeled fictional section of the prompt, not as real historical messages. Optional examples are removed if needed to preserve space for recent history. Keep `promptTemplate` focused on voice; avoid embedding another always-present example bank there.
 

@@ -14,13 +14,27 @@ const messageQuery = z.object({
     before: z.coerce.number().int().positive().optional(),
     limit: z.coerce.number().int().min(1).max(100).default(50),
 });
+const markReadBody = z.object({
+    sequenceNumber: z.number().int().min(0).optional(),
+});
+
 export const relationshipsRouter = Router();
 relationshipsRouter.get("/", async (request, response) => {
     const relationships = await RelationshipModel.find({ userId: request.auth.userId })
         .sort({ lastMessageAt: -1, createdAt: -1 })
-        .populate("characterId", "slug name age avatarUrl ethnicity occupation location gallery persona.summary persona.personalityTraits hobbies")
+        .populate("characterId", "slug name age avatarUrl ethnicity occupation location gallery persona.summary persona.personalityTraits persona.values persona.boundaries hobbies")
         .lean();
-    response.json({ data: relationships });
+    const relationshipsWithUnread = await Promise.all(
+        relationships.map(async (rel) => {
+            const unreadCount = await MessageModel.countDocuments({
+                relationshipId: rel._id,
+                role: "assistant",
+                sequenceNumber: { $gt: rel.userLastReadSequence || 0 },
+            });
+            return { ...rel, unreadCount };
+        })
+    );
+    response.json({ data: relationshipsWithUnread });
 });
 relationshipsRouter.post("/", async (request, response) => {
     const body = createRelationship.parse(request.body);
@@ -35,7 +49,7 @@ relationshipsRouter.post("/", async (request, response) => {
             stage: "new",
             mood: "neutral",
         },
-    }, { new: true, upsert: true, setDefaultsOnInsert: true }).populate("characterId", "slug name age avatarUrl ethnicity occupation location gallery persona.summary persona.personalityTraits hobbies");
+    }, { new: true, upsert: true, setDefaultsOnInsert: true }).populate("characterId", "slug name age avatarUrl ethnicity occupation location gallery persona.summary persona.personalityTraits persona.values persona.boundaries hobbies");
     response.status(201).json({ data: relationship });
 });
 relationshipsRouter.get("/:relationshipId", async (request, response) => {
@@ -43,6 +57,45 @@ relationshipsRouter.get("/:relationshipId", async (request, response) => {
     const relationship = await requireOwnedRelationship(relationshipId, request.auth.userId);
     await relationship.populate("characterId");
     response.json({ data: relationship });
+});
+relationshipsRouter.post("/:relationshipId/read", async (request, response) => {
+    const relationshipId = requireObjectId(request.params.relationshipId, "relationshipId");
+    await requireOwnedRelationship(relationshipId, request.auth.userId);
+    const body = markReadBody.parse(request.body || {});
+    let targetSequence = body.sequenceNumber;
+    if (targetSequence === undefined) {
+        const latestMsg = await MessageModel.findOne({ relationshipId })
+            .sort({ sequenceNumber: -1 })
+            .select("sequenceNumber")
+            .lean();
+        targetSequence = latestMsg ? latestMsg.sequenceNumber : 0;
+    }
+    const now = new Date();
+    const updated = await RelationshipModel.findByIdAndUpdate(
+        relationshipId,
+        {
+            $max: { userLastReadSequence: targetSequence },
+            $set: { userLastReadAt: now },
+        },
+        { new: true }
+    ).select("userLastReadSequence userLastReadAt companionLastReadSequence companionLastReadAt");
+
+    await MessageModel.updateMany(
+        {
+            relationshipId,
+            role: "assistant",
+            sequenceNumber: { $lte: targetSequence },
+            readAt: { $exists: false },
+        },
+        { $set: { readAt: now } }
+    );
+
+    response.json({
+        data: {
+            userLastReadSequence: updated.userLastReadSequence,
+            userLastReadAt: updated.userLastReadAt,
+        },
+    });
 });
 relationshipsRouter.get("/:relationshipId/messages", async (request, response) => {
     const relationshipId = requireObjectId(request.params.relationshipId, "relationshipId");
@@ -54,7 +107,7 @@ relationshipsRouter.get("/:relationshipId/messages", async (request, response) =
     const messages = await MessageModel.find(filter)
         .sort({ sequenceNumber: -1 })
         .limit(query.limit)
-        .select("sequenceNumber role content status createdAt completedAt")
+        .select("sequenceNumber role content status createdAt completedAt readAt mediaUrl mediaType mediaMeta clientMessageId")
         .lean();
     response.json({ data: messages.reverse() });
 });

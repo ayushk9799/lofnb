@@ -4,10 +4,12 @@ import helmet from "helmet";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { StorageService } from "./services/storage.service.js";
+import { authRouter } from "./routes/auth.routes.js";
 import { charactersRouter } from "./routes/characters.routes.js";
 import { createChatRouter } from "./routes/chat.routes.js";
 import { mediaRouter } from "./routes/media.routes.js";
 import { memoriesRouter } from "./routes/memories.routes.js";
+import { profileRouter } from "./routes/profile.routes.js";
 import { relationshipsRouter } from "./routes/relationships.routes.js";
 import { storageRouter, uploadRouter } from "./routes/upload.routes.js";
 export function createApp({ env, llm, embeddingProvider, storage = new StorageService(env) }) {
@@ -28,7 +30,13 @@ export function createApp({ env, llm, embeddingProvider, storage = new StorageSe
     app.get("/health", (_request, response) => {
         response.json({ status: "ok" });
     });
+    // Public auth endpoints
+    app.use("/api/auth", authRouter);
+    app.use("/api/login", authRouter);
     app.use("/api", createAuthMiddleware(env));
+    app.use("/api/profile", profileRouter);
+    app.use("/api/user/profile", profileRouter);
+    app.use("/api/user", profileRouter);
     app.use("/api/upload", uploadRouter);
     app.use("/api/characters", charactersRouter);
     app.use("/api/relationships", relationshipsRouter);

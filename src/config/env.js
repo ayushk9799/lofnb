@@ -21,6 +21,7 @@ const schema = z.object({
     EMBEDDING_API_KEY: optionalString,
     EMBEDDING_MODEL: optionalString,
     EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(1536),
+    GOOGLE_CLIENT_ID: optionalString.default("50299044849-tl8kc7h49rcbl5aicfs41eg49tf3bmkn.apps.googleusercontent.com"),
     ALLOW_DEV_AUTH: z
         .enum(["true", "false"])
         .default("false")

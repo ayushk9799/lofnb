@@ -26,6 +26,7 @@ const characterSchema = new Schema({
             caption: { type: String, trim: true, maxlength: 240 },
         },
     ],
+    photos: [{ type: String, trim: true }],
     persona: {
         summary: { type: String, required: true, maxlength: 4_000 },
         personalityTraits: [{ type: String, maxlength: 80 }],

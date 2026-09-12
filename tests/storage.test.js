@@ -30,4 +30,11 @@ describe("isolated media storage", () => {
     it("rejects HTML and SVG disguised as images", async () => {
         await expect(storage.upload({buffer:Buffer.from("<svg onload='alert(1)'/>"), mimeType:"image/png"})).rejects.toThrow();
     });
+    it("supports custom filename and indexed folder naming", async () => {
+        const file = await storage.upload({buffer: png, folder: "users/u1/avatar", filename: "avatar_123.png", mimeType: "image/png"});
+        expect(file.key).toBe("users/u1/avatar/avatar_123.png");
+        const object = await storage.getObject(file.key);
+        expect(object).not.toBeNull();
+        await storage.delete(file.key);
+    });
 });

@@ -6,6 +6,7 @@ import { requireOwnedRelationship } from "./relationship.service.js";
 import { allocateMessageSequence } from "./sequence.service.js";
 import { assembleContext } from "./context.service.js";
 import { HttpError } from "../utils/http-error.js";
+import { sendChatPushNotification } from "./push-notification.service.js";
 
 export async function withChatLease(relationshipId, userId, work) {
     await requireOwnedRelationship(relationshipId, userId);
@@ -46,9 +47,21 @@ export async function generateReply({relationshipId, userId, body, env, llm, emb
         if (!user) user = await MessageModel.create({
             relationshipId, sequenceNumber: await allocateMessageSequence(relationshipId, userId),
             role: "user", content: body.content, status: "completed", clientMessageId: body.clientMessageId, completedAt: new Date(),
+            mediaUrl: body.mediaUrl, mediaKey: body.mediaKey, mediaType: body.mediaType,
         });
+        const seenAt = new Date();
+        if (!user.readAt) {
+            user.readAt = seenAt;
+            await MessageModel.updateOne({ _id: user._id }, { $set: { readAt: seenAt } });
+        }
+        await RelationshipModel.findByIdAndUpdate(relationshipId, {
+            $max: { companionLastReadSequence: user.sequenceNumber },
+            $set: { companionLastReadAt: seenAt },
+        });
+
         let assistant = await MessageModel.findOne({relationshipId, replyToMessageId: user._id});
         if (assistant && ["completed", "partial"].includes(assistant.status)) {
+            emit("seen", { userMessageId: user._id, userSequence: user.sequenceNumber, seenAt: seenAt.toISOString() });
             emit("message", {id: assistant._id, userId: user._id, userSequence: user.sequenceNumber, sequenceNumber: assistant.sequenceNumber});
             emit("delta", {content: assistant.content});
             emit("done", {cached: true, status: assistant.status});
@@ -75,6 +88,7 @@ export async function generateReply({relationshipId, userId, body, env, llm, emb
                 vectorIndexName: env.MEMORY_VECTOR_INDEX, userTimezone: body.timezone, signal: generationSignal,
             });
             generationSignal.throwIfAborted();
+            emit("seen", { userMessageId: user._id, userSequence: user.sequenceNumber, seenAt: seenAt.toISOString() });
             emit("message", {id: assistant._id, userId: user._id, userSequence: user.sequenceNumber, sequenceNumber: assistant.sequenceNumber});
             for await (const chunk of llm.streamChat({messages: context.messages, signal: generationSignal})) {
                 generationSignal.throwIfAborted();
@@ -96,6 +110,20 @@ export async function generateReply({relationshipId, userId, body, env, llm, emb
             // The completed message is the durable outbox. A worker recovers a failed enqueue.
             await enqueueMemory(assistant).catch(() => console.warn("Memory scheduling deferred to recovery"));
             emit("done", {status: "completed"});
+
+            // Dispatch push notification for completed reply
+            try {
+                const rel = await RelationshipModel.findById(relationshipId).populate("characterId").lean();
+                const charName = rel?.characterId?.name || "Companion";
+                sendChatPushNotification({
+                    userId,
+                    characterName: charName,
+                    content,
+                    relationshipId,
+                }).catch(err => console.warn("[Push] Error dispatching push:", err.message));
+            } catch (err) {
+                console.warn("[Push] Error checking relationship for push:", err.message);
+            }
         } catch (error) {
             await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: {
                 content: content.slice(0, 100_000), status: content ? "partial" : "failed", completedAt: new Date(),

@@ -57,6 +57,10 @@ export async function processProactiveCheckIns({
                 continue;
             }
 
+            const isLeftOnRead = lastMessage.role === "assistant" &&
+                (relationship.userLastReadSequence || 0) >= lastMessage.sequenceNumber;
+            const triggerType = isLeftOnRead ? "left_on_read" : "check_in";
+
             await withChatLease(relationship._id, relationship.userId, async leaseSignal => {
                 const combinedSignal = AbortSignal.any([
                     signal || new AbortController().signal,
@@ -67,7 +71,7 @@ export async function processProactiveCheckIns({
                     userId: relationship.userId,
                     llm,
                     userTimezone: character.timezone,
-                    triggerType: "check_in",
+                    triggerType,
                     signal: combinedSignal,
                 });
             });

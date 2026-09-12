@@ -5,9 +5,39 @@ import { env } from "./config/env.js";
 import { createEmbeddingProvider, createLlmProvider, } from "./providers/provider-factory.js";
 import { startMemoryWorker } from "./workers/memory.worker.js";
 import { startProactiveWorker } from "./workers/proactive.worker.js";
+import { UserModel } from "./models/user.model.js";
+import { RelationshipModel } from "./models/relationship.model.js";
+import { MessageModel } from "./models/message.model.js";
+import { MemoryModel } from "./models/memory.model.js";
+
 const llm = createLlmProvider(env);
 const embeddingProvider = createEmbeddingProvider(env);
 await connectDatabase(env.MONGODB_URI);
+
+// Auto-purge any leftover mock/dev users from database
+try {
+    const mockFilter = {
+        $or: [
+            { userId: { $regex: /^(google_dev_|apple_dev_|mock_|lofn-mobile-dev)/ } },
+            { email: { $regex: /^(dev_|mock_)/ } },
+            { name: { $regex: /^User dev_/ } },
+        ]
+    };
+    const mockUsers = await UserModel.find(mockFilter).select("userId");
+    if (mockUsers.length > 0) {
+        const ids = mockUsers.map(u => u.userId);
+        await Promise.all([
+            UserModel.deleteMany(mockFilter),
+            RelationshipModel.deleteMany({ userId: { $in: ids } }),
+            MessageModel.deleteMany({ userId: { $in: ids } }),
+            MemoryModel.deleteMany({ userId: { $in: ids } }),
+        ]);
+        console.log(`[CLEANUP] Deleted ${mockUsers.length} mock dev accounts from database.`);
+    }
+} catch (err) {
+    console.warn("Mock cleanup warning:", err.message);
+}
+
 const app = createApp({ env, llm, embeddingProvider });
 const server = createServer(app);
 const stopMemoryWorker = llm

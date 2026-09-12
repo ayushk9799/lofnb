@@ -14,6 +14,14 @@ const messageSchema = new Schema({
         immutable: true,
     },
     content: { type: String, default: "", maxlength: 100_000 },
+    mediaUrl: { type: String, trim: true },
+    mediaKey: { type: String, trim: true },
+    mediaType: { type: String, enum: ["image", "audio"], default: undefined },
+    mediaMeta: {
+        width: Number,
+        height: Number,
+        size: Number,
+    },
     status: {
         type: String,
         enum: ["pending", "streaming", "completed", "partial", "failed"],
@@ -34,6 +42,7 @@ const messageSchema = new Schema({
         retrievedMemoryIds: [{ type: Schema.Types.ObjectId, ref: "Memory" }],
     },
     completedAt: { type: Date },
+    readAt: { type: Date },
 }, { timestamps: true });
 messageSchema.index({ relationshipId: 1, sequenceNumber: 1 }, { unique: true });
 messageSchema.index({ relationshipId: 1, createdAt: -1 });

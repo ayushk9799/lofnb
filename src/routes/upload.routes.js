@@ -10,7 +10,12 @@ uploadRouter.post("/", upload.single("file"), async (request, response, next) =>
         if (!request.file) {
             throw new HttpError(400, "No file provided in request", "BAD_REQUEST");
         }
-        const folder = `users/${createHash("sha256").update(request.auth.userId).digest("hex")}`;
+        let folder;
+        if (request.body?.relationshipId) {
+            folder = `messages/${request.body.relationshipId}`;
+        } else {
+            folder = `users/${createHash("sha256").update(request.auth.userId).digest("hex")}`;
+        }
         const result = await request.app.locals.storage.upload({
             buffer: request.file.buffer,
             originalFilename: request.file.originalname,
