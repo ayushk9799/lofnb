@@ -63,3 +63,53 @@ it("requests low verbosity from GPT-5 chat models", async () => {
   const options = fetch.mock.calls[0][1];
   expect(JSON.parse(options.body).verbosity).toBe("low");
 });
+it("accepts alternative valid finish reasons such as end_turn and eos", async () => {
+  response([
+    'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"end_turn"}]}\n\n',
+    'data: [DONE]\n\n',
+  ]);
+  let text = "";
+  for await (const chunk of provider.streamChat({ messages: [] }))
+    text += chunk;
+  expect(text).toBe("ok");
+});
+it("injects OpenRouter headers and include_reasoning for OpenRouter base URL", async () => {
+  response(['data: {"choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}\n\n', 'data: [DONE]\n\n']);
+  const openRouterProvider = new OpenAiCompatibleProvider({
+    baseUrl: "https://openrouter.ai/api/v1",
+    apiKey: "sk-or-test-key",
+    model: "openrouter/auto",
+  });
+  let text = "";
+  for await (const chunk of openRouterProvider.streamChat({ messages: [] }))
+    text += chunk;
+  expect(text).toBe("hi");
+  const call = fetch.mock.calls[0];
+  const headers = call[1].headers;
+  expect(headers["HTTP-Referer"]).toBe("https://lofn.ai");
+  expect(headers["X-Title"]).toBe("Lofn Companion");
+  const body = JSON.parse(call[1].body);
+  expect(body.include_reasoning).toBe(false);
+});
+it("strips think tags from generateText output", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "<think>Let me think about this</think>Hello there!",
+                },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    ),
+  );
+  const text = await provider.generateText({ messages: [] });
+  expect(text).toBe("Hello there!");
+});

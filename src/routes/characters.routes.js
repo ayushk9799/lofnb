@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { CharacterModel } from "../models/character.model.js";
 import { requireObjectId } from "../middleware/error-handler.js";
 import { HttpError } from "../utils/http-error.js";

@@ -1,6 +1,20 @@
 function endpoint(baseUrl, path) {
   return `${baseUrl.replace(/\/$/, "")}/${path}`;
 }
+function getHeaders(baseUrl, apiKey) {
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+  if (baseUrl && baseUrl.includes("openrouter.ai")) {
+    headers["HTTP-Referer"] = "https://lofn.ai";
+    headers["X-Title"] = "Lofn Companion";
+  }
+  return headers;
+}
+function stripThinking(text = "") {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+}
 async function assertResponse(response) {
   if (response.ok) return;
   const body = await response.text();
@@ -9,7 +23,7 @@ async function assertResponse(response) {
   );
 }
 function extractJson(value) {
-  const withoutFence = value
+  const withoutFence = stripThinking(value)
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
@@ -35,16 +49,15 @@ export class OpenAiCompatibleProvider {
   }
   async *streamChat({ messages, signal }) {
     const reasoning = isReasoningModel(this.model);
+    const isOpenRouter = Boolean(this.baseUrl && this.baseUrl.includes("openrouter.ai"));
     const response = await fetch(endpoint(this.baseUrl, "chat/completions"), {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: getHeaders(this.baseUrl, this.apiKey),
       body: JSON.stringify({
         model: this.model,
         messages,
         stream: true,
+        ...(isOpenRouter ? { include_reasoning: false } : {}),
         ...(reasoning
           ? { verbosity: "low" }
           : {
@@ -73,9 +86,10 @@ export class OpenAiCompatibleProvider {
       const parsed = JSON.parse(payload);
       if (parsed.error) throw new Error("Provider stream failed");
       const choice = parsed.choices?.[0];
-      if (choice?.finish_reason && choice.finish_reason !== "stop")
+      const validStopReasons = ["stop", "end_turn", "eos"];
+      if (choice?.finish_reason && !validStopReasons.includes(choice.finish_reason))
         throw new Error("Provider reply was truncated or blocked");
-      if (choice?.finish_reason === "stop") finished = true;
+      if (choice?.finish_reason && validStopReasons.includes(choice.finish_reason)) finished = true;
       return choice?.delta?.content;
     };
     for await (const bytes of response.body) {
@@ -98,10 +112,7 @@ export class OpenAiCompatibleProvider {
     const reasoning = isReasoningModel(this.model);
     const response = await fetch(endpoint(this.baseUrl, "chat/completions"), {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: getHeaders(this.baseUrl, this.apiKey),
       body: JSON.stringify({
         model: this.model,
         messages,
@@ -123,10 +134,7 @@ export class OpenAiCompatibleProvider {
     const reasoning = isReasoningModel(this.model);
     const response = await fetch(endpoint(this.baseUrl, "chat/completions"), {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: getHeaders(this.baseUrl, this.apiKey),
       body: JSON.stringify({
         model: this.model,
         messages,
@@ -141,7 +149,7 @@ export class OpenAiCompatibleProvider {
     const payload = await response.json();
     const content = payload.choices?.[0]?.message?.content;
     if (!content) throw new Error("Model provider returned empty content");
-    return content.trim();
+    return stripThinking(content);
   }
 }
 export class OpenAiCompatibleEmbeddingProvider {
@@ -158,10 +166,7 @@ export class OpenAiCompatibleEmbeddingProvider {
   async embed(text, signal) {
     const response = await fetch(endpoint(this.baseUrl, "embeddings"), {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: getHeaders(this.baseUrl, this.apiKey),
       body: JSON.stringify({ model: this.model, input: text }),
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])

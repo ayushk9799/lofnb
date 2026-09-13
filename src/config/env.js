@@ -9,6 +9,7 @@ const schema = z.object({
     CORS_ORIGIN: z.string().default("http://localhost:5173"),
     OPENAI_API_KEY: optionalString,
     OPENAI_MODEL: optionalString,
+    OPENROUTER_API_KEY: optionalString,
     LLM_BASE_URL: optionalUrl,
     LLM_API_KEY: optionalString,
     LLM_MODEL: optionalString,
@@ -33,21 +34,28 @@ const schema = z.object({
     R2_PUBLIC_URL: optionalUrl,
 });
 export function loadEnvironment(source = process.env) {
-    const effectiveApiKey = source.LLM_API_KEY || source.OPENAI_API_KEY;
-    const effectiveEmbeddingKey = source.EMBEDDING_API_KEY || source.OPENAI_API_KEY || source.LLM_API_KEY;
+    const isOpenRouter = Boolean(
+        source.OPENROUTER_API_KEY ||
+        (source.LLM_BASE_URL && String(source.LLM_BASE_URL).includes("openrouter.ai"))
+    );
+    const effectiveApiKey = source.OPENROUTER_API_KEY || source.LLM_API_KEY || source.OPENAI_API_KEY;
+    const effectiveEmbeddingKey = source.EMBEDDING_API_KEY || source.OPENROUTER_API_KEY || source.OPENAI_API_KEY || source.LLM_API_KEY;
+    const defaultBaseUrl = isOpenRouter ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1";
+    const defaultModel = isOpenRouter ? "openrouter/auto" : "gpt-4o-mini";
+    const defaultEmbeddingBaseUrl = isOpenRouter ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1";
     const normalized = {
         ...source,
         MONGODB_URI: source.MONGODB_URI ||
             (source.NODE_ENV === "test" ? "mongodb://localhost:27017/lofn_test" : undefined),
         LLM_API_KEY: effectiveApiKey,
         LLM_BASE_URL: source.LLM_BASE_URL ||
-            (effectiveApiKey ? "https://api.openai.com/v1" : undefined),
+            (effectiveApiKey ? defaultBaseUrl : undefined),
         LLM_MODEL: source.LLM_MODEL ||
             source.OPENAI_MODEL ||
-            (effectiveApiKey ? "gpt-4o-mini" : undefined),
+            (effectiveApiKey ? defaultModel : undefined),
         EMBEDDING_API_KEY: effectiveEmbeddingKey,
         EMBEDDING_BASE_URL: source.EMBEDDING_BASE_URL ||
-            (effectiveEmbeddingKey ? "https://api.openai.com/v1" : undefined),
+            (effectiveEmbeddingKey ? defaultEmbeddingBaseUrl : undefined),
         EMBEDDING_MODEL: source.EMBEDDING_MODEL ||
             (effectiveEmbeddingKey ? "text-embedding-3-small" : undefined),
     };
