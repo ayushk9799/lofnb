@@ -12,6 +12,7 @@ import { memoriesRouter } from "./routes/memories.routes.js";
 import { profileRouter } from "./routes/profile.routes.js";
 import { relationshipsRouter } from "./routes/relationships.routes.js";
 import { storageRouter, uploadRouter } from "./routes/upload.routes.js";
+import { createWebhookRouter } from "./routes/webhook.routes.js";
 export function createApp({ env, llm, embeddingProvider, storage = new StorageService(env) }) {
     const app = express();
     app.locals.storage = storage;
@@ -33,6 +34,8 @@ export function createApp({ env, llm, embeddingProvider, storage = new StorageSe
     // Public auth endpoints
     app.use("/api/auth", authRouter);
     app.use("/api/login", authRouter);
+    // Public webhooks endpoint (e.g. RevenueCat)
+    app.use("/api/webhooks", createWebhookRouter({ env }));
     app.use("/api", createAuthMiddleware(env));
     app.use("/api/profile", profileRouter);
     app.use("/api/user/profile", profileRouter);

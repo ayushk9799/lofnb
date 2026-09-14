@@ -20,6 +20,10 @@ const userSchema = new Schema({
     fcmToken: { type: String, default: "", index: true },
     platform: { type: String, enum: ["ios", "android", "web", ""], default: "" },
     deviceInfoUpdatedAt: { type: Date },
+    isPremium: { type: Boolean, default: false, index: true },
+    premiumEntitlement: { type: String, default: "" },
+    premiumExpiresAt: { type: Date },
+    revenueCatAppUserId: { type: String, index: true },
 }, { timestamps: true });
 
 export const UserModel = model("User", userSchema);

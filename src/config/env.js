@@ -32,6 +32,7 @@ const schema = z.object({
     R2_SECRET_ACCESS_KEY: optionalString,
     R2_BUCKET_NAME: optionalString,
     R2_PUBLIC_URL: optionalUrl,
+    REVENUECAT_WEBHOOK_SECRET: optionalString,
 });
 export function loadEnvironment(source = process.env) {
     const isOpenRouter = Boolean(
