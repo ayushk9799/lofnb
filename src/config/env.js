@@ -46,6 +46,7 @@ const schema = z.object({
     REVENUECAT_PROJECT_ID: optionalString,
     REVENUECAT_SECRET_KEY: optionalString,
     REVENUECAT_ENTITLEMENT_ID: z.string().default("premium"),
+    DAILY_REWARD_COOLDOWN_SECONDS: z.coerce.number().int().min(0).default(86400),
 });
 export function loadEnvironment(source = process.env) {
     const isOpenRouter = Boolean(
