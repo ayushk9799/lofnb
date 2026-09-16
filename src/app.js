@@ -16,9 +16,10 @@ import { swipesRouter } from "./routes/swipes.routes.js";
 import { storageRouter, uploadRouter } from "./routes/upload.routes.js";
 import { createWebhookRouter } from "./routes/webhook.routes.js";
 import { createCurrencyRouter } from "./routes/currency.routes.js";
-export function createApp({ env, llm, embeddingProvider, storage = new StorageService(env) }) {
+export function createApp({ env, llm, visionLlm, embeddingProvider, mediaProvider, storage = new StorageService(env) }) {
     const app = express();
     app.locals.storage = storage;
+    app.locals.matchRate = env.MATCH_RATE ?? 1;
     app.disable("x-powered-by");
     app.use(helmet({ crossOriginResourcePolicy: false }));
     app.use(cors({
@@ -51,7 +52,7 @@ export function createApp({ env, llm, embeddingProvider, storage = new StorageSe
     app.use("/api/characters", charactersRouter);
     app.use("/api/relationships", relationshipsRouter);
     app.use("/api/relationships/:relationshipId/media", mediaRouter);
-    app.use("/api/relationships/:relationshipId/chat", createChatRouter({ env, llm, embeddingProvider }));
+    app.use("/api/relationships/:relationshipId/chat", createChatRouter({ env, llm, visionLlm, embeddingProvider, mediaProvider, storage }));
     app.use("/api/relationships/:relationshipId/memories", memoriesRouter);
     app.use(notFoundHandler);
     app.use(errorHandler);

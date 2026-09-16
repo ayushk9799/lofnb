@@ -1,7 +1,7 @@
 import { MessageModel } from "../models/message.model.js";
 import { RelationshipModel } from "../models/relationship.model.js";
 
-const PHOTO_TAG = /%%PHOTO\s+(gallery|scene)\s*\|\s*([^%\n]+)(?:\s*%%)?/gi;
+const PHOTO_TAG = /%%PHOTO\s+(gallery|scene)\s*\|\s*([^%\n]+)(?:\s*%%?)?/gi;
 const PHOTO_COOLDOWN_TURNS = 3;
 const LORE_STOP = new Set([
     "about", "and", "for", "from", "have", "just", "that", "the", "this",

@@ -109,7 +109,7 @@ swipesRouter.post("/", async (request, response) => {
         throw new HttpError(404, "Character not found", "NOT_FOUND");
     }
 
-    const probability = character.matchProbability ?? request.app.locals.matchRate;
+    const probability = character.matchProbability ?? request.app.locals.matchRate ?? 1;
     const outcome =
         body.direction === "like" && Math.random() < probability
             ? "matched"

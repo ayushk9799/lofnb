@@ -4,26 +4,22 @@
     "name": "Maya",
     "age": 26,
     "timezone": "America/New_York",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/6a9b74b263974ba7dac3a6b6/avatar.jpg",
+    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/avatar.png",
     "ethnicity": "Japanese-American",
     "occupation": "Freelance photographer",
     "location": "Brooklyn, New York",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/6a9b74b263974ba7dac3a6b6/photos/0_945dac1d.jpg",
-        "caption": "Taking a coffee break between photo shoots"
+        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/0_dinner.png",
+        "caption": "Late dinner and good conversations"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/6a9b74b263974ba7dac3a6b6/photos/1_46377172.jpg",
-        "caption": "Golden hour at DUMBO waterfront"
+        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/1_market.png",
+        "caption": "Golden hour strolling through Brooklyn market"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/6a9b74b263974ba7dac3a6b6/photos/2_dd0aedf6.jpg",
-        "caption": "Out testing my vintage Leica 35mm lens"
-      },
-      {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/6a9b74b263974ba7dac3a6b6/photos/3_9f20e0d8.jpg",
-        "caption": "Midnight stroll through lower Manhattan"
+        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/2_dumbo.png",
+        "caption": "Out testing my vintage 35mm lens in DUMBO"
       }
     ],
     "hobbies": [
@@ -221,10 +217,9 @@
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/6a9b74b263974ba7dac3a6b6/photos/0_945dac1d.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/6a9b74b263974ba7dac3a6b6/photos/1_46377172.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/6a9b74b263974ba7dac3a6b6/photos/2_dd0aedf6.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/6a9b74b263974ba7dac3a6b6/photos/3_9f20e0d8.jpg"
+      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/0_dinner.png",
+      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/1_market.png",
+      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/2_dumbo.png"
     ],
     "version": 2
   },

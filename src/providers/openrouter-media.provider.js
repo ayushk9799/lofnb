@@ -197,6 +197,7 @@ export class OpenRouterMediaProvider {
     if (this.baseUrl.includes("openrouter.ai") && /gpt-audio/i.test(this.speechModel)) {
       return this.#synthesizeOpenRouterAudio({ text, signal });
     }
+    // Fish Audio and other TTS models use the standard /audio/speech endpoint.
     const response = await fetch(endpoint(this.baseUrl, "audio/speech"), {
       method: "POST",
       headers: headers(this.baseUrl, this.apiKey),

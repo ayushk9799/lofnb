@@ -76,7 +76,7 @@ export function loadEnvironment(source = process.env) {
         AUDIO_MODEL: source.AUDIO_MODEL ||
             (effectiveApiKey ? (isOpenRouter ? "google/gemini-2.5-flash" : "gpt-4o-audio-preview") : undefined),
         SPEECH_MODEL: source.SPEECH_MODEL ||
-            (effectiveApiKey ? (isOpenRouter ? "openai/gpt-audio-mini" : "gpt-4o-mini-tts") : undefined),
+            (effectiveApiKey ? (isOpenRouter ? "fish-audio/s1" : "gpt-4o-mini-tts") : undefined),
         IMAGE_GENERATION_MODEL: source.IMAGE_GENERATION_MODEL ||
             (effectiveApiKey ? (isOpenRouter ? "openai/gpt-image-2.5-flare" : "gpt-image-2.5-flare") : undefined),
         SPEECH_VOICE: source.SPEECH_VOICE || "alloy",
