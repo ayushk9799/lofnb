@@ -16,10 +16,21 @@ describe("environment configuration with OpenAI defaults", () => {
     expect(parsed.EMBEDDING_API_KEY).toBe("sk-test-key-12345");
     expect(parsed.EMBEDDING_BASE_URL).toBe("https://api.openai.com/v1");
     expect(parsed.EMBEDDING_MODEL).toBe("text-embedding-3-small");
+    expect(parsed.DAILY_REWARD_COOLDOWN_SECONDS).toBe(86400);
 
     const provider = createLlmProvider(parsed);
     expect(provider).toBeDefined();
     expect(provider?.model).toBe("gpt-4o-mini");
+  });
+
+  it("allows the daily reward cooldown to be disabled for local testing", () => {
+    const parsed = loadEnvironment({
+      NODE_ENV: "test",
+      MONGODB_URI: "mongodb://localhost:27017/lofn_test",
+      DAILY_REWARD_COOLDOWN_SECONDS: "0",
+    });
+
+    expect(parsed.DAILY_REWARD_COOLDOWN_SECONDS).toBe(0);
   });
 
   it("respects custom LLM_MODEL or LLM_API_KEY if specified", () => {

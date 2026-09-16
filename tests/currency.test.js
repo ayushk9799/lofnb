@@ -3,7 +3,7 @@ import { CurrencyService } from "../src/services/currency.service.js";
 import { createCurrencyRouter } from "../src/routes/currency.routes.js";
 import { UserModel } from "../src/models/user.model.js";
 
-function createMockReqRes({ method = "GET", url = "/", headers = {}, body = {}, auth = { userId: "user_test_123" } } = {}) {
+function createMockReqRes({ method = "GET", url = "/", headers = {}, body = {}, query = {}, auth = { userId: "user_test_123" } } = {}) {
     const req = {
         method,
         url,
@@ -12,6 +12,7 @@ function createMockReqRes({ method = "GET", url = "/", headers = {}, body = {}, 
             return headers[name.toLowerCase()];
         },
         body,
+        query,
         auth,
     };
 
@@ -98,6 +99,32 @@ describe("CurrencyService", () => {
         );
     });
 
+    it("verifies an active entitlement directly with RevenueCat", async () => {
+        const service = new CurrencyService(mockEnv);
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                subscriber: {
+                    entitlements: {
+                        premium: { expires_date: "2099-01-01T00:00:00Z" },
+                    },
+                },
+            }),
+        });
+
+        await expect(service.hasActiveEntitlement("rc_user_uuid", "premium")).resolves.toBe(true);
+        expect(global.fetch).toHaveBeenCalledWith(
+            "https://api.revenuecat.com/v1/subscribers/rc_user_uuid",
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    Authorization: "Bearer sk_test_secret_key",
+                }),
+            })
+        );
+    });
+
     it("adjusts balance (spending) via RevenueCat transaction API", async () => {
         const service = new CurrencyService(mockEnv);
 
@@ -164,6 +191,12 @@ describe("Currency Routes", () => {
     });
 
     it("GET / returns the user gems balance", async () => {
+        vi.spyOn(UserModel, "findOne").mockReturnValue({
+            lean: vi.fn().mockResolvedValue({
+                userId: "user_test_123",
+                revenueCatAppUserId: "rc_user_uuid",
+            }),
+        });
         global.fetch = vi.fn().mockResolvedValue({
             ok: true,
             status: 200,
@@ -183,9 +216,19 @@ describe("Currency Routes", () => {
             gems: 120,
             items: [{ currency_code: "GEMS", balance: 120 }],
         });
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining("/customers/rc_user_uuid/virtual_currencies"),
+            expect.any(Object)
+        );
     });
 
     it("POST /spend spends gems and returns updated balance", async () => {
+        vi.spyOn(UserModel, "findOne").mockReturnValue({
+            lean: vi.fn().mockResolvedValue({
+                userId: "user_test_123",
+                revenueCatAppUserId: "rc_user_uuid",
+            }),
+        });
         global.fetch = vi.fn().mockResolvedValue({
             ok: true,
             status: 200,
@@ -209,6 +252,10 @@ describe("Currency Routes", () => {
             spent: 5,
             remainingGems: 115,
         });
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining("/customers/rc_user_uuid/virtual_currencies/transactions"),
+            expect.any(Object)
+        );
     });
 
     it("POST /spend rejects invalid amount", async () => {
@@ -297,6 +344,59 @@ describe("Currency Routes", () => {
         expect(mockUser.lastDailyHeartsClaimedAt).toBeTruthy();
     });
 
+    it("POST /daily-reward/claim verifies delayed premium state and credits the RevenueCat ID", async () => {
+        const mockSave = vi.fn().mockResolvedValue(true);
+        const mockUser = {
+            userId: "user_test_123",
+            revenueCatAppUserId: "rc_user_uuid",
+            lastDailyHeartsClaimedAt: null,
+            isPremium: false,
+            save: mockSave,
+        };
+        vi.spyOn(UserModel, "findOne").mockResolvedValue(mockUser);
+
+        global.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    subscriber: {
+                        entitlements: {
+                            premium: { expires_date: "2099-01-01T00:00:00Z" },
+                        },
+                    },
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    items: [{ currency_code: "GEMS", balance: 150 }],
+                }),
+            });
+
+        const router = createCurrencyRouter({
+            env: { ...mockEnv, REVENUECAT_ENTITLEMENT_ID: "premium" },
+        });
+        const { req, res } = createMockReqRes({
+            method: "POST",
+            url: "/daily-reward/claim",
+            body: { premiumExpected: true },
+        });
+
+        await invokeRouter(router, req, res);
+
+        expect(res.body.claimed).toBe(30);
+        expect(res.body.remainingGems).toBe(150);
+        expect(mockUser.isPremium).toBe(true);
+        expect(mockSave).toHaveBeenCalled();
+        expect(global.fetch).toHaveBeenNthCalledWith(
+            2,
+            expect.stringContaining("/customers/rc_user_uuid/virtual_currencies/transactions"),
+            expect.any(Object)
+        );
+    });
+
     it("POST /daily-reward/claim rejects when still in cooldown", async () => {
         const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000);
         const mockUser = {
@@ -315,5 +415,43 @@ describe("Currency Routes", () => {
         expect(err).toBeTruthy();
         expect(err.status).toBe(400);
         expect(err.code).toBe("COOLDOWN_ACTIVE");
+    });
+
+    it("allows repeat claims with unique RevenueCat transactions when test cooldown is zero", async () => {
+        const mockUser = {
+            userId: "user_test_123",
+            revenueCatAppUserId: "rc_user_uuid",
+            lastDailyHeartsClaimedAt: new Date(),
+            isPremium: false,
+            save: vi.fn().mockResolvedValue(true),
+        };
+        vi.spyOn(UserModel, "findOne").mockResolvedValue(mockUser);
+        global.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: async () => ({ items: [{ currency_code: "GEMS", balance: 10 }] }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: async () => ({ items: [{ currency_code: "GEMS", balance: 20 }] }),
+            });
+
+        const router = createCurrencyRouter({
+            env: { ...mockEnv, DAILY_REWARD_COOLDOWN_SECONDS: 0 },
+        });
+        const first = createMockReqRes({ method: "POST", url: "/daily-reward/claim" });
+        const second = createMockReqRes({ method: "POST", url: "/daily-reward/claim" });
+
+        await invokeRouter(router, first.req, first.res);
+        await invokeRouter(router, second.req, second.res);
+
+        expect(first.res.body).toMatchObject({ claimed: 10, remainingGems: 10, cooldownSeconds: 0 });
+        expect(second.res.body).toMatchObject({ claimed: 10, remainingGems: 20, cooldownSeconds: 0 });
+        expect(first.res.body.nextClaimAvailableAt).toBeNull();
+        const firstKey = global.fetch.mock.calls[0][1].headers["Idempotency-Key"];
+        const secondKey = global.fetch.mock.calls[1][1].headers["Idempotency-Key"];
+        expect(firstKey).not.toBe(secondKey);
     });
 });

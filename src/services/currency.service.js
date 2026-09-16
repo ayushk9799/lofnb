@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { HttpError } from "../utils/http-error.js";
 
 const REVENUECAT_API_BASE = "https://api.revenuecat.com/v2";
+const REVENUECAT_V1_API_BASE = "https://api.revenuecat.com/v1";
 
 export class CurrencyService {
     constructor(env) {
@@ -46,6 +47,42 @@ export class CurrencyService {
             GEMS: gemsItem ? gemsItem.balance : 0,
             items,
         };
+    }
+
+    /**
+     * Verify an entitlement directly with RevenueCat. This is used as a
+     * narrow fallback immediately after purchase, before the webhook has had
+     * time to update the local user record.
+     */
+    async hasActiveEntitlement(appUserId, entitlementId) {
+        if (!this.isConfigured()) {
+            throw new HttpError(500, "RevenueCat is not configured on server.");
+        }
+        if (!appUserId || !entitlementId) return false;
+
+        const url = `${REVENUECAT_V1_API_BASE}/subscribers/${encodeURIComponent(appUserId)}`;
+        const res = await fetch(url, {
+            headers: {
+                Authorization: `Bearer ${this.secretKey}`,
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (res.status === 404) return false;
+        if (!res.ok) {
+            const errorText = await res.text().catch(() => "");
+            console.warn(`[CurrencyService] Error checking entitlement for ${appUserId}:`, res.status, errorText);
+            throw new HttpError(503, "Unable to verify premium status with RevenueCat.", "PREMIUM_VERIFICATION_FAILED");
+        }
+
+        const data = await res.json();
+        const entitlement = data?.subscriber?.entitlements?.[entitlementId];
+        if (!entitlement) return false;
+
+        // A null expiry represents a lifetime entitlement.
+        if (!entitlement.expires_date) return true;
+        const expiresAt = Date.parse(entitlement.expires_date);
+        return Number.isFinite(expiresAt) && expiresAt > Date.now();
     }
 
     /**

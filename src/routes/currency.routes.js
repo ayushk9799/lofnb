@@ -1,13 +1,23 @@
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { HttpError } from "../utils/http-error.js";
 import { CurrencyService } from "../services/currency.service.js";
 import { UserModel } from "../models/user.model.js";
 
-const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_DAILY_COOLDOWN_SECONDS = 24 * 60 * 60;
+
+function revenueCatCustomerId(user, fallbackUserId) {
+    return user?.revenueCatAppUserId || user?.accountId || fallbackUserId;
+}
 
 export function createCurrencyRouter({ env }) {
     const router = Router();
     const currencyService = new CurrencyService(env);
+    const configuredCooldown = Number(env?.DAILY_REWARD_COOLDOWN_SECONDS);
+    const dailyCooldownSeconds = Number.isFinite(configuredCooldown)
+        ? Math.max(0, Math.floor(configuredCooldown))
+        : DEFAULT_DAILY_COOLDOWN_SECONDS;
+    const dailyCooldownMs = dailyCooldownSeconds * 1000;
 
     // GET /api/gems/daily-reward - Get status of daily hearts reward
     router.get("/daily-reward", async (request, response) => {
@@ -17,6 +27,9 @@ export function createCurrencyRouter({ env }) {
         }
 
         const user = await UserModel.findOne({ userId }).lean();
+        if (!user) {
+            throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+        }
         const lastClaimedAt = user?.lastDailyHeartsClaimedAt ? new Date(user.lastDailyHeartsClaimedAt) : null;
         const now = Date.now();
 
@@ -25,7 +38,7 @@ export function createCurrencyRouter({ env }) {
         let nextClaimAvailableAt = null;
 
         if (lastClaimedAt) {
-            const nextTime = lastClaimedAt.getTime() + DAILY_COOLDOWN_MS;
+            const nextTime = lastClaimedAt.getTime() + dailyCooldownMs;
             if (nextTime > now) {
                 canClaim = false;
                 cooldownSeconds = Math.ceil((nextTime - now) / 1000);
@@ -33,7 +46,21 @@ export function createCurrencyRouter({ env }) {
             }
         }
 
-        const isPremium = Boolean(user?.isPremium);
+        let isPremium = Boolean(user.isPremium);
+        const shouldRefreshPremium = request.query?.refreshPremium === "true";
+        if (!isPremium && shouldRefreshPremium) {
+            isPremium = await currencyService.hasActiveEntitlement(
+                revenueCatCustomerId(user, userId),
+                env?.REVENUECAT_ENTITLEMENT_ID || "premium"
+            );
+            if (!isPremium) {
+                throw new HttpError(
+                    409,
+                    "Your premium membership is still syncing. Please try again shortly.",
+                    "PREMIUM_STATUS_PENDING"
+                );
+            }
+        }
         const amount = isPremium ? 30 : 10;
 
         const payload = {
@@ -66,29 +93,56 @@ export function createCurrencyRouter({ env }) {
 
         const now = Date.now();
         if (user.lastDailyHeartsClaimedAt) {
-            const nextTime = user.lastDailyHeartsClaimedAt.getTime() + DAILY_COOLDOWN_MS;
+            const nextTime = user.lastDailyHeartsClaimedAt.getTime() + dailyCooldownMs;
             if (nextTime > now) {
                 throw new HttpError(400, "Daily hearts reward is on cooldown.", "COOLDOWN_ACTIVE");
             }
         }
 
-        const isPremium = Boolean(user.isPremium);
+        let isPremium = Boolean(user.isPremium);
+        const premiumExpected = request.body?.premiumExpected === true;
+        if (!isPremium && premiumExpected) {
+            isPremium = await currencyService.hasActiveEntitlement(
+                revenueCatCustomerId(user, userId),
+                env?.REVENUECAT_ENTITLEMENT_ID || "premium"
+            );
+            if (!isPremium) {
+                throw new HttpError(
+                    409,
+                    "Your premium membership is still syncing. Please try again shortly.",
+                    "PREMIUM_STATUS_PENDING"
+                );
+            }
+            // Keep the local fallback in sync when the webhook is delayed.
+            user.isPremium = true;
+            user.premiumEntitlement = env?.REVENUECAT_ENTITLEMENT_ID || "premium";
+        }
         const amount = isPremium ? 30 : 10;
-        const idempotencyKey = request.header("Idempotency-Key") || `daily-hearts-${userId}-${new Date(now).toISOString().slice(0, 10)}`;
+        const defaultIdempotencyKey = dailyCooldownSeconds === 0
+            ? `daily-hearts-test-${userId}-${randomUUID()}`
+            : `daily-hearts-${userId}-${new Date(now).toISOString().slice(0, 10)}`;
+        const idempotencyKey = request.header("Idempotency-Key") || defaultIdempotencyKey;
 
-        const result = await currencyService.adjustBalance(userId, amount, "GEMS", idempotencyKey);
+        const result = await currencyService.adjustBalance(
+            revenueCatCustomerId(user, userId),
+            amount,
+            "GEMS",
+            idempotencyKey
+        );
 
         user.lastDailyHeartsClaimedAt = new Date(now);
         await user.save();
 
-        const nextClaimAvailableAt = new Date(now + DAILY_COOLDOWN_MS).toISOString();
+        const nextClaimAvailableAt = dailyCooldownSeconds > 0
+            ? new Date(now + dailyCooldownMs).toISOString()
+            : null;
 
         const claimPayload = {
             success: true,
             claimed: amount,
             remainingGems: result.balance,
             nextClaimAvailableAt,
-            cooldownSeconds: Math.ceil(DAILY_COOLDOWN_MS / 1000),
+            cooldownSeconds: dailyCooldownSeconds,
         };
 
         return response.json({
@@ -104,7 +158,11 @@ export function createCurrencyRouter({ env }) {
             throw new HttpError(401, "Authentication required", "UNAUTHORIZED");
         }
 
-        const balances = await currencyService.getBalances(userId);
+        const user = await UserModel.findOne({ userId }).lean();
+        if (!user) {
+            throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+        }
+        const balances = await currencyService.getBalances(revenueCatCustomerId(user, userId));
         return response.json({
             success: true,
             gems: balances.GEMS,
@@ -126,7 +184,16 @@ export function createCurrencyRouter({ env }) {
         }
 
         const idempotencyKey = request.header("Idempotency-Key") || undefined;
-        const result = await currencyService.adjustBalance(userId, -Math.abs(amount), "GEMS", idempotencyKey);
+        const user = await UserModel.findOne({ userId }).lean();
+        if (!user) {
+            throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+        }
+        const result = await currencyService.adjustBalance(
+            revenueCatCustomerId(user, userId),
+            -Math.abs(amount),
+            "GEMS",
+            idempotencyKey
+        );
 
         return response.json({
             success: true,
