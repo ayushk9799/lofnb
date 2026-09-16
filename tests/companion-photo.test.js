@@ -1,10 +1,11 @@
 import { expect, it } from "vitest";
 import {
   buildCompanionImagePrompt,
+  collectCameraRoll,
   decideCompanionPhoto,
   extractPhotoIntent,
   matchGalleryPhoto,
-  userAskedForPhoto,
+  pickCameraRollPhoto,
 } from "../src/services/companion-photo.service.js";
 
 it("strips a photo tag and keeps the visible text", () => {
@@ -13,7 +14,6 @@ it("strips a photo tag and keeps the visible text", () => {
   );
   expect(parsed.content).toBe("sanding a walnut table for a client.");
   expect(parsed.intent).toEqual({
-    kind: "scene",
     query: "walnut dining table being sanded in a workshop",
   });
 });
@@ -24,22 +24,11 @@ it("returns no intent when the model did not tag a photo", () => {
 
 it("parses a photo tag even when the model forgets the closing marker", () => {
   const parsed = extractPhotoIntent("%%PHOTO gallery | walnut table in the shop");
-  expect(parsed.intent).toEqual({
-    kind: "gallery",
-    query: "walnut table in the shop",
-  });
+  expect(parsed.intent).toEqual({ query: "walnut table in the shop" });
   expect(parsed.content).toBe("");
 });
 
-it("detects explicit photo asks and ignores ordinary chat", () => {
-  expect(userAskedForPhoto("send a pic of the table")).toBe(true);
-  expect(userAskedForPhoto("what does it look like?")).toBe(true);
-  expect(userAskedForPhoto("can i see it")).toBe(true);
-  expect(userAskedForPhoto("what build")).toBe(false);
-  expect(userAskedForPhoto("just finishing up a build")).toBe(false);
-});
-
-it("matches a gallery photo by caption keywords and ignores unrelated shots", () => {
+it("matches an existing photo by caption when the description lines up", () => {
   const gallery = [
     { url: "/selfies/1.jpg", caption: "Sunday coffee" },
     { url: "/shop/table.jpg", caption: "Walnut dining table in the workshop" },
@@ -48,29 +37,37 @@ it("matches a gallery photo by caption keywords and ignores unrelated shots", ()
   expect(matchGalleryPhoto(gallery, "my dog at the beach")).toBeNull();
 });
 
-it("sends on a tag or an explicit ask, and respects cooldown unless asked", () => {
-  expect(decideCompanionPhoto({ intent: { kind: "scene", query: "shop" }, asked: false, rateLimited: false }))
-    .toEqual({ kind: "scene", query: "shop" });
-  expect(decideCompanionPhoto({ intent: null, asked: true, rateLimited: true }))
-    .toEqual({ kind: "scene", query: "" });
-  expect(decideCompanionPhoto({ intent: { kind: "scene", query: "shop" }, asked: false, rateLimited: true }))
-    .toBeNull();
-  expect(decideCompanionPhoto({ intent: null, asked: false, rateLimited: false })).toBeNull();
+it("only sends a photo when there is something to show", () => {
+  expect(decideCompanionPhoto({ intent: { query: "the view from the stoop" } }))
+    .toEqual({ query: "the view from the stoop" });
+  expect(decideCompanionPhoto({ intent: null })).toBeNull();
 });
-
-it("builds a candid phone-photo prompt from character and scene", () => {
+it("builds a prompt from what the photo shows", () => {
   const prompt = buildCompanionImagePrompt(
     {
       name: "Kai Chen",
       age: 34,
       occupation: "Furniture maker",
       ethnicity: "East Asian",
-      gallery: [{ caption: "short dark hair, work shirt" }],
     },
     "walnut dining table being sanded",
   );
-  expect(prompt).toContain("Kai Chen");
   expect(prompt).toContain("walnut dining table being sanded");
-  expect(prompt).toContain("Candid smartphone photo");
+  expect(prompt).toContain("Exactly one smartphone photograph");
   expect(prompt).not.toContain("cinematic masterpiece");
+});
+
+it("collects existing photos without picking one at random for a matching caption", () => {
+  const roll = collectCameraRoll({
+    avatarUrl: "/maya/avatar.jpg",
+    photos: ["/maya/1.jpg", "/maya/2.jpg"],
+    gallery: [{ url: "/maya/cafe.jpg", caption: "cafe window" }],
+  });
+  expect(roll.map((item) => item.url)).toEqual([
+    "/maya/cafe.jpg",
+    "/maya/1.jpg",
+    "/maya/2.jpg",
+    "/maya/avatar.jpg",
+  ]);
+  expect(pickCameraRollPhoto(roll, "cafe window").url).toBe("/maya/cafe.jpg");
 });

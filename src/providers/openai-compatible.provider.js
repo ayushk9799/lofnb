@@ -47,7 +47,7 @@ export class OpenAiCompatibleProvider {
     this.apiKey = options.apiKey;
     this.model = options.model;
   }
-  async *streamChat({ messages, signal }) {
+  async *streamChat({ messages, tools, toolChoice, signal }) {
     const reasoning = isReasoningModel(this.model);
     const isOpenRouter = Boolean(this.baseUrl && this.baseUrl.includes("openrouter.ai"));
     const response = await fetch(endpoint(this.baseUrl, "chat/completions"), {
@@ -57,6 +57,9 @@ export class OpenAiCompatibleProvider {
         model: this.model,
         messages,
         stream: true,
+        ...(Array.isArray(tools) && tools.length
+          ? { tools, tool_choice: toolChoice || "auto", parallel_tool_calls: false }
+          : {}),
         ...(isOpenRouter ? { include_reasoning: false } : {}),
         ...(reasoning
           ? { verbosity: "low" }
@@ -75,6 +78,17 @@ export class OpenAiCompatibleProvider {
     const decoder = new TextDecoder();
     let buffer = "";
     let finished = false;
+    const toolParts = new Map();
+    const ingestToolDelta = (parts = []) => {
+      for (const part of parts) {
+        const index = Number.isInteger(part.index) ? part.index : 0;
+        const current = toolParts.get(index) || { id: "", name: "", arguments: "" };
+        if (part.id) current.id = part.id;
+        if (part.function?.name) current.name += part.function.name;
+        if (part.function?.arguments) current.arguments += part.function.arguments;
+        toolParts.set(index, current);
+      }
+    };
     const parse = (line) => {
       if (!line.startsWith("data:")) return;
       const payload = line.slice(5).trim();
@@ -86,10 +100,12 @@ export class OpenAiCompatibleProvider {
       const parsed = JSON.parse(payload);
       if (parsed.error) throw new Error("Provider stream failed");
       const choice = parsed.choices?.[0];
-      const validStopReasons = ["stop", "end_turn", "eos"];
+      const validStopReasons = ["stop", "end_turn", "eos", "tool_calls"];
       if (choice?.finish_reason && !validStopReasons.includes(choice.finish_reason))
         throw new Error("Provider reply was truncated or blocked");
       if (choice?.finish_reason && validStopReasons.includes(choice.finish_reason)) finished = true;
+      if (choice?.delta?.tool_calls) ingestToolDelta(choice.delta.tool_calls);
+      if (choice?.message?.tool_calls) ingestToolDelta(choice.message.tool_calls);
       return choice?.delta?.content;
     };
     for await (const bytes of response.body) {
@@ -107,6 +123,18 @@ export class OpenAiCompatibleProvider {
       if (content) yield content;
     }
     if (!finished) throw new Error("Provider stream ended without completion");
+    if (toolParts.size) {
+      yield {
+        toolCalls: [...toolParts.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([, part]) => ({
+            id: part.id,
+            type: "function",
+            function: { name: part.name, arguments: part.arguments },
+          }))
+          .filter((call) => call.function.name),
+      };
+    }
   }
   async generateJson({ messages, signal }) {
     const reasoning = isReasoningModel(this.model);

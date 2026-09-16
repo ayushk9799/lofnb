@@ -87,7 +87,7 @@ it("keeps unrelated profile decoration out while retaining voice and relationshi
       name: "Robin",
       age: 44,
       promptTemplate: "Dry humor",
-      persona: { likes: ["tea"] },
+      persona: { likes: ["oolong tea"] },
       backstory: { friends: ["Sam"] },
       conversationalStyle: { petNames: ["sunshine"] },
     },
@@ -100,7 +100,7 @@ it("keeps unrelated profile decoration out while retaining voice and relationshi
     "untrusted data",
   ])
     expect(prompt).toContain(text);
-  for (const text of ["tea", "Sam", "sunshine", "Introduction Directive"])
+  for (const text of ["oolong tea", "Sam", "sunshine", "Introduction Directive"])
     expect(prompt).not.toContain(text);
 });
 
@@ -109,9 +109,13 @@ it("requires direct short replies without profile performance", () => {
   expect(prompt).toContain("one text bubble of 3–35 words");
   expect(prompt).toContain("Do not perform your profile");
   expect(prompt).toContain("Asking their name is optional");
-  expect(prompt).toContain("%%PHOTO scene | short visual description%%");
-  expect(prompt).toContain("%%VOICE | the words you are speaking%%");
-  expect(prompt).toContain("Never say you cannot send audio");
+  expect(prompt).toContain("send_photo");
+  expect(prompt).toContain("refuse_photo");
+  expect(prompt).toContain("send_voice_note");
+  expect(prompt).toContain("refuse_voice_note");
+  expect(prompt).toContain("Every reply is exactly one of");
+  expect(prompt).toContain("you must call send_photo or refuse_photo");
+  expect(prompt).toContain("A compliment on a photo you already sent is text only");
   expect(prompt).not.toContain("STRICTLY BAN");
   expect(prompt).not.toContain("DEFLECTION & DODGE AWARENESS");
 });

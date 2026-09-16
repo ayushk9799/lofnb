@@ -29,14 +29,10 @@ it("detects explicit voice asks and ignores ordinary chat", () => {
   expect(userAskedForVoice("what build")).toBe(false);
 });
 
-it("sends on a tag or an explicit ask, and respects cooldown unless asked", () => {
-  expect(decideCompanionVoice({ intent: { kind: "voice", spoken: "hey" }, asked: false, rateLimited: false }))
+it("only sends a voice note when the model decided to", () => {
+  expect(decideCompanionVoice({ intent: { kind: "voice", spoken: "hey" } }))
     .toEqual({ kind: "voice", spoken: "hey" });
-  expect(decideCompanionVoice({ intent: null, asked: true, rateLimited: true }))
-    .toEqual({ kind: "voice", spoken: "" });
-  expect(decideCompanionVoice({ intent: { kind: "voice", spoken: "hey" }, asked: false, rateLimited: true }))
-    .toBeNull();
-  expect(decideCompanionVoice({ intent: null, asked: false, rateLimited: false })).toBeNull();
+  expect(decideCompanionVoice({ intent: null })).toBeNull();
 });
 
 it("estimates a short spoken duration from word count", () => {

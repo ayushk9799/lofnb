@@ -73,6 +73,43 @@ it("accepts alternative valid finish reasons such as end_turn and eos", async ()
     text += chunk;
   expect(text).toBe("ok");
 });
+it("streams tool calls and allows tool_calls as a finish reason", async () => {
+  response([
+    'data: {"choices":[{"delta":{"content":"here.","tool_calls":[{"index":0,"id":"call_1","function":{"name":"send_photo","arguments":"{\\"what\\":"}}]}}]}\n\n',
+    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"park\\"}"}}]},"finish_reason":"tool_calls"}]}\n\n',
+    "data: [DONE]\n\n",
+  ]);
+  const chunks = [];
+  for await (const chunk of provider.streamChat({
+    messages: [],
+    tools: [{ type: "function", function: { name: "send_photo" } }],
+  })) {
+    chunks.push(chunk);
+  }
+  expect(chunks[0]).toBe("here.");
+  expect(chunks[1].toolCalls[0].function).toEqual({
+    name: "send_photo",
+    arguments: '{"what":"park"}',
+  });
+  const body = JSON.parse(fetch.mock.calls[0][1].body);
+  expect(body.tools).toHaveLength(1);
+  expect(body.tool_choice).toBe("auto");
+});
+it("passes a forced tool choice through to the provider", async () => {
+  response([
+    'data: {"choices":[{"delta":{"content":"here."},"finish_reason":"stop"}]}\n\n',
+    "data: [DONE]\n\n",
+  ]);
+  for await (const _chunk of provider.streamChat({
+    messages: [],
+    tools: [{ type: "function", function: { name: "send_photo" } }],
+    toolChoice: { type: "function", function: { name: "send_photo" } },
+  })) {
+    /* consume */
+  }
+  const body = JSON.parse(fetch.mock.calls[0][1].body);
+  expect(body.tool_choice).toEqual({ type: "function", function: { name: "send_photo" } });
+});
 it("injects OpenRouter headers and include_reasoning for OpenRouter base URL", async () => {
   response(['data: {"choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}\n\n', 'data: [DONE]\n\n']);
   const openRouterProvider = new OpenAiCompatibleProvider({

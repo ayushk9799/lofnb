@@ -51,6 +51,10 @@ const messageSchema = new Schema({
         latencyMs: Number,
         finishReason: String,
         retrievedMemoryIds: [{ type: Schema.Types.ObjectId, ref: "Memory" }],
+        mediaDecision: {
+            type: String,
+            enum: ["text", "image_sent", "image_refused", "audio_sent", "audio_refused"],
+        },
     },
     completedAt: { type: Date },
     readAt: { type: Date },

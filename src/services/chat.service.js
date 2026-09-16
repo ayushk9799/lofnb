@@ -5,8 +5,10 @@ import { MemoryJobModel } from "../models/memory-job.model.js";
 import { requireOwnedRelationship } from "./relationship.service.js";
 import { allocateMessageSequence } from "./sequence.service.js";
 import { assembleContext } from "./context.service.js";
-import { attachCompanionPhoto, extractPhotoIntent, userAskedForPhoto } from "./companion-photo.service.js";
-import { attachCompanionVoice, extractVoiceIntent, userAskedForVoice } from "./companion-voice.service.js";
+import { attachCompanionPhoto, extractPhotoIntent } from "./companion-photo.service.js";
+import { attachCompanionVoice, extractVoiceIntent } from "./companion-voice.service.js";
+import { resolveCompanionMedia } from "./companion-media.service.js";
+import { intentsFromToolCalls, toolsForCompanionTurn } from "./companion-tools.js";
 import { HttpError } from "../utils/http-error.js";
 import { sendChatPushNotification } from "./push-notification.service.js";
 
@@ -158,50 +160,65 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             generationSignal.throwIfAborted();
             emit("seen", { userMessageId: user._id, userSequence: user.sequenceNumber, seenAt: seenAt.toISOString() });
             emit("message", {id: assistant._id, userId: user._id, userSequence: user.sequenceNumber, sequenceNumber: assistant.sequenceNumber});
-            for await (const chunk of selectedLlm.streamChat({messages: context.messages, signal: generationSignal})) {
+            let toolCalls = [];
+            const mediaTurn = toolsForCompanionTurn(currentMessage);
+            for await (const chunk of selectedLlm.streamChat({
+                messages: context.messages,
+                tools: mediaTurn.tools,
+                toolChoice: mediaTurn.toolChoice,
+                signal: generationSignal,
+            })) {
                 generationSignal.throwIfAborted();
-                content += chunk;
+                if (chunk && typeof chunk === "object" && Array.isArray(chunk.toolCalls)) {
+                    toolCalls = chunk.toolCalls;
+                    continue;
+                }
+                const text = typeof chunk === "string" ? chunk : "";
+                if (!text) continue;
+                content += text;
                 if (content.length > 100_000) throw new Error("Reply is too long");
-                emit("delta", {content: chunk});
+                emit("delta", {content: text});
                 if (Date.now() - lastPersisted > 1000) {
                     await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: {content}});
                     lastPersisted = Date.now();
                 }
             }
             generationSignal.throwIfAborted();
-            if (!content.trim()) throw new Error("The model returned an empty response");
-            const photoParsed = extractPhotoIntent(content);
-            const voiceParsed = extractVoiceIntent(photoParsed.content);
-            content = voiceParsed.content;
-            if (!content.trim() && !voiceParsed.intent && !photoParsed.intent) {
+            const fromTools = intentsFromToolCalls(toolCalls);
+            const taggedPhoto = extractPhotoIntent(content);
+            content = extractVoiceIntent(taggedPhoto.content).content;
+            const resolved = resolveCompanionMedia({
+                toolPhoto: fromTools.photo || taggedPhoto.intent,
+                toolVoice: fromTools.voice,
+                userText: currentMessage,
+                replyText: content,
+                photoNeeded: mediaTurn.photoNeeded,
+                voiceNeeded: mediaTurn.voiceNeeded,
+            });
+            const photoIntent = resolved.photo;
+            const voiceIntent = resolved.voice;
+            if (!content.trim() && fromTools.photo?.action === "refuse") {
+                content = fromTools.photo.reason || "not sending one.";
+            } else if (!content.trim() && fromTools.voice?.action === "refuse") {
+                content = fromTools.voice.reason || "not sending a voice note.";
+            }
+            if (!content.trim() && !voiceIntent && !photoIntent) {
                 throw new Error("The model returned an empty response");
             }
             const saved = await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: {
                 content, status: "completed", completedAt: new Date(), memoryPending: true,
                 "generation.latencyMs": Date.now() - startedAt, "generation.retrievedMemoryIds": context.retrievedMemoryIds,
+                "generation.mediaDecision": resolved.decision,
             }});
             if (!saved.modifiedCount) throw new Error("Reply lease expired");
-            const preferVoice = Boolean(voiceParsed.intent) || userAskedForVoice(currentMessage);
-            const preferPhoto = Boolean(photoParsed.intent) || userAskedForPhoto(currentMessage);
-            if (preferVoice && !photoParsed.intent) {
+            if (voiceIntent && !photoIntent) {
                 await attachCompanionVoice({
-                    relationshipId, assistantMessage: assistant, userText: currentMessage,
-                    replyText: content, intent: voiceParsed.intent, mediaProvider, storage,
+                    relationshipId, assistantMessage: assistant,
+                    replyText: content, intent: voiceIntent, mediaProvider, storage,
                 });
-            } else if (preferPhoto && !voiceParsed.intent) {
+            } else if (photoIntent) {
                 await attachCompanionPhoto({
-                    relationshipId, assistantMessage: assistant, userText: currentMessage,
-                    replyText: content, intent: photoParsed.intent, mediaProvider, storage,
-                });
-            } else if (preferVoice) {
-                await attachCompanionVoice({
-                    relationshipId, assistantMessage: assistant, userText: currentMessage,
-                    replyText: content, intent: voiceParsed.intent, mediaProvider, storage,
-                });
-            } else if (preferPhoto) {
-                await attachCompanionPhoto({
-                    relationshipId, assistantMessage: assistant, userText: currentMessage,
-                    replyText: content, intent: photoParsed.intent, mediaProvider, storage,
+                    relationshipId, assistantMessage: assistant, intent: photoIntent, mediaProvider, storage,
                 });
             }
             // The completed message is the durable outbox. A worker recovers a failed enqueue.

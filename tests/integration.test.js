@@ -208,27 +208,43 @@ it("attaches a generated photo when the model tags a scene, and strips the tag",
     llm: {
       ...llm,
       async *streamChat() {
-        yield "a walnut dining table for a client.\n%%PHOTO scene | walnut table being sanded in the shop%%";
+        yield "this one's from the shop.";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "send_photo",
+              arguments: JSON.stringify({ what: "walnut table being sanded in the shop" }),
+            },
+          }],
+        };
       },
     },
     mediaProvider: { generateImage },
     storage: { upload },
   });
   const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
-  expect(assistant.content).toBe("a walnut dining table for a client.");
+  expect(assistant.content).toBe("this one's from the shop.");
   expect(assistant.mediaType).toBe("image");
   expect(assistant.mediaUrl).toBe("/api/storage/messages/rel/table.png");
   expect(assistant.mediaMeta.source).toBe("generated");
   expect(generateImage).toHaveBeenCalledOnce();
   expect(upload).toHaveBeenCalledOnce();
 });
-it("reuses a gallery photo instead of generating when the tag matches a caption", async () => {
+it("reuses a gallery photo instead of generating when the description matches a caption", async () => {
   const generateImage = vi.fn();
   await reply({
     llm: {
       ...llm,
       async *streamChat() {
-        yield "that's the one from last week.\n%%PHOTO gallery | Original%%";
+        yield "that's the one from last week.";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "send_photo",
+              arguments: JSON.stringify({ what: "Original" }),
+            },
+          }],
+        };
       },
     },
     mediaProvider: { generateImage },
@@ -241,12 +257,118 @@ it("reuses a gallery photo instead of generating when the tag matches a caption"
   expect(assistant.mediaMeta.source).toBe("gallery");
   expect(generateImage).not.toHaveBeenCalled();
 });
+it("attaches a photo from a send_photo tool call instead of markup", async () => {
+  const generateImage = vi.fn(async () => ({
+    buffer: Buffer.from("iVBORw0KGgo=", "base64"),
+    mimeType: "image/png",
+    model: "test-image",
+  }));
+  const upload = vi.fn(async () => ({
+    url: "/api/storage/messages/rel/park.png",
+    key: "messages/rel/park.png",
+    mimeType: "image/png",
+    size: 12,
+  }));
+  await reply({
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "this one from last week.";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "send_photo",
+              arguments: JSON.stringify({
+                what: "park path at golden hour",
+              }),
+            },
+          }],
+        };
+      },
+    },
+    mediaProvider: { generateImage },
+    storage: { upload },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.content).toBe("this one from last week.");
+  expect(assistant.mediaType).toBe("image");
+  expect(assistant.mediaMeta.source).toBe("generated");
+  expect(assistant.generation.mediaDecision).toBe("image_sent");
+  expect(generateImage).toHaveBeenCalledOnce();
+  expect(generateImage.mock.calls[0][0].prompt).toContain("park path at golden hour");
+});
+it("does not attach a photo when she called refuse_photo", async () => {
+  const generateImage = vi.fn(async () => ({
+    buffer: Buffer.from("iVBORw0KGgo=", "base64"),
+    mimeType: "image/png",
+    model: "test-image",
+  }));
+  await reply({
+    body: { content: "Send pic na", clientMessageId: "refuse-photo" },
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "nah not sending pics to strangers just yet.";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "refuse_photo",
+              arguments: JSON.stringify({ reason: "don't send pics to strangers" }),
+            },
+          }],
+        };
+      },
+    },
+    mediaProvider: { generateImage },
+    storage: { upload: vi.fn() },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.content).toBe("nah not sending pics to strangers just yet.");
+  expect(assistant.mediaType).toBeUndefined();
+  expect(assistant.generation.mediaDecision).toBe("image_refused");
+  expect(generateImage).not.toHaveBeenCalled();
+});
+it("treats a photo ask with no tool call as image refused", async () => {
+  const generateImage = vi.fn(async () => ({
+    buffer: Buffer.from("iVBORw0KGgo=", "base64"),
+    mimeType: "image/png",
+    model: "test-image",
+  }));
+  let seen;
+  await reply({
+    body: { content: "Send pic na", clientMessageId: "skip-photo-tool" },
+    llm: {
+      ...llm,
+      async *streamChat(args) {
+        seen = args;
+        yield "still no. this isn't changing.";
+      },
+    },
+    mediaProvider: { generateImage },
+    storage: { upload: vi.fn() },
+  });
+  expect(seen.toolChoice).toBe("required");
+  expect(seen.tools.map((tool) => tool.function.name)).toEqual(["send_photo", "refuse_photo"]);
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.content).toBe("still no. this isn't changing.");
+  expect(assistant.mediaType).toBeUndefined();
+  expect(assistant.generation.mediaDecision).toBe("image_refused");
+  expect(generateImage).not.toHaveBeenCalled();
+});
 it("keeps the text reply if photo generation fails", async () => {
   await reply({
     llm: {
       ...llm,
       async *streamChat() {
-        yield "sanding it down.\n%%PHOTO scene | workshop table%%";
+        yield "sanding it down.";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "send_photo",
+              arguments: JSON.stringify({ what: "workshop table" }),
+            },
+          }],
+        };
       },
     },
     mediaProvider: {
@@ -261,7 +383,36 @@ it("keeps the text reply if photo generation fails", async () => {
   expect(assistant.content).toBe("sanding it down.");
   expect(assistant.mediaType).toBeUndefined();
 });
-it("attaches synthesized audio when the model tags a voice note, and strips the tag", async () => {
+it("attaches a photo if the text claims she sent one but she forgot the tool", async () => {
+  const generateImage = vi.fn(async () => ({
+    buffer: Buffer.from("iVBORw0KGgo=", "base64"),
+    mimeType: "image/png",
+    model: "test-image",
+  }));
+  const upload = vi.fn(async () => ({
+    url: "/api/storage/messages/rel/claimed.png",
+    key: "messages/rel/claimed.png",
+    mimeType: "image/png",
+    size: 12,
+  }));
+  await reply({
+    body: { content: "send a pic", clientMessageId: "request-claimed-photo" },
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "fine. here's another. don't get used to it.";
+      },
+    },
+    mediaProvider: { generateImage },
+    storage: { upload },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.content).toBe("fine. here's another. don't get used to it.");
+  expect(assistant.mediaType).toBe("image");
+  expect(assistant.mediaUrl).toBe("/api/storage/messages/rel/claimed.png");
+  expect(generateImage).toHaveBeenCalledOnce();
+});
+it("attaches synthesized audio from a send_voice_note tool call", async () => {
   const synthesize = vi.fn(async () => ({
     buffer: Buffer.from("ID3"),
     mimeType: "audio/mpeg",
@@ -277,7 +428,15 @@ it("attaches synthesized audio when the model tags a voice note, and strips the 
     llm: {
       ...llm,
       async *streamChat() {
-        yield "one sec\n%%VOICE | hey, wrapping the table now%%";
+        yield "one sec";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "send_voice_note",
+              arguments: JSON.stringify({ spoken: "hey, wrapping the table now" }),
+            },
+          }],
+        };
       },
     },
     mediaProvider: { synthesize },
@@ -288,20 +447,46 @@ it("attaches synthesized audio when the model tags a voice note, and strips the 
   expect(assistant.mediaType).toBe("audio");
   expect(assistant.mediaUrl).toBe("/api/storage/messages/rel/voice.mp3");
   expect(assistant.mediaMeta.transcript).toBe("hey, wrapping the table now");
+  expect(assistant.generation.mediaDecision).toBe("audio_sent");
   expect(synthesize).toHaveBeenCalledOnce();
   expect(synthesize.mock.calls[0][0].text).toBe("hey, wrapping the table now");
 });
-it("synthesizes a voice note when the user asks even without a tag", async () => {
+it("does not attach audio when she called refuse_voice_note", async () => {
   const synthesize = vi.fn(async () => ({
     buffer: Buffer.from("ID3"),
     mimeType: "audio/mpeg",
     model: "test-tts",
   }));
-  const upload = vi.fn(async () => ({
-    url: "/api/storage/messages/rel/asked.mp3",
-    key: "messages/rel/asked.mp3",
+  await reply({
+    body: { content: "send a voice note", clientMessageId: "refuse-voice" },
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "can't talk right now, texting.";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "refuse_voice_note",
+              arguments: JSON.stringify({ reason: "can't talk right now" }),
+            },
+          }],
+        };
+      },
+    },
+    mediaProvider: { synthesize },
+    storage: { upload: vi.fn() },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.content).toBe("can't talk right now, texting.");
+  expect(assistant.mediaType).toBeUndefined();
+  expect(assistant.generation.mediaDecision).toBe("audio_refused");
+  expect(synthesize).not.toHaveBeenCalled();
+});
+it("does not attach audio unless she called send_voice_note", async () => {
+  const synthesize = vi.fn(async () => ({
+    buffer: Buffer.from("ID3"),
     mimeType: "audio/mpeg",
-    size: 18,
+    model: "test-tts",
   }));
   await reply({
     body: { content: "send a voice note", clientMessageId: "request-voice" },
@@ -312,19 +497,28 @@ it("synthesizes a voice note when the user asks even without a tag", async () =>
       },
     },
     mediaProvider: { synthesize },
-    storage: { upload },
+    storage: { upload: vi.fn() },
   });
   const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
-  expect(assistant.mediaType).toBe("audio");
-  expect(assistant.mediaMeta.transcript).toBe("sure, wrapping up at the shop.");
-  expect(synthesize).toHaveBeenCalledOnce();
+  expect(assistant.content).toBe("sure, wrapping up at the shop.");
+  expect(assistant.mediaType).toBeUndefined();
+  expect(assistant.generation.mediaDecision).toBe("audio_refused");
+  expect(synthesize).not.toHaveBeenCalled();
 });
 it("keeps the text reply if voice synthesis fails", async () => {
   await reply({
     llm: {
       ...llm,
       async *streamChat() {
-        yield "one sec\n%%VOICE | wrapping up%%";
+        yield "one sec";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "send_voice_note",
+              arguments: JSON.stringify({ spoken: "wrapping up" }),
+            },
+          }],
+        };
       },
     },
     mediaProvider: {
