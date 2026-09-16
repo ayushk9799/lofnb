@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "nodemon server.js",
+    "tunnel": "cloudflared tunnel --url http://localhost:4000",
     "start": "node server.js",
     "seed": "node src/seed.js",
     "characters:import": "node src/seed.js",

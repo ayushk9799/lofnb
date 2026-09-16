@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { UserModel } from "../models/user.model.js";
 import { RelationshipModel } from "../models/relationship.model.js";
 import { MessageModel } from "../models/message.model.js";
@@ -14,6 +15,27 @@ import {
 import { HttpError } from "../utils/http-error.js";
 
 export const authRouter = Router();
+
+function newAccountIdentity() {
+    const accountId = randomUUID();
+    return { accountId, revenueCatAppUserId: accountId };
+}
+
+async function ensureAccountIdentity(user) {
+    let changed = false;
+    if (!user.accountId) {
+        user.accountId = randomUUID();
+        changed = true;
+    }
+    if (!user.revenueCatAppUserId) {
+        // Preserve the legacy provider-scoped RevenueCat ID for existing users so
+        // their previously purchased entitlements remain attached.
+        user.revenueCatAppUserId = user.userId;
+        changed = true;
+    }
+    if (changed) await user.save();
+    return user;
+}
 
 const googleAuthSchema = z.object({
     token: z.string().min(1).optional(),
@@ -42,6 +64,7 @@ async function handleGoogleAuth(request, response) {
     if (!user) {
         user = await UserModel.create({
             userId,
+            ...newAccountIdentity(),
             email: verified.email,
             authProvider: "google",
             providerId: verified.sub,
@@ -59,6 +82,8 @@ async function handleGoogleAuth(request, response) {
         if (!user.name && verified.name) { user.name = verified.name; updated = true; }
         if (updated) await user.save();
     }
+
+    await ensureAccountIdentity(user);
 
     const sessionToken = createSessionToken({ userId, email: user.email });
     const userData = user.toObject();
@@ -86,6 +111,7 @@ async function handleAppleAuth(request, response) {
     if (!user) {
         user = await UserModel.create({
             userId,
+            ...newAccountIdentity(),
             email: verified.email,
             authProvider: "apple",
             providerId: verified.sub,
@@ -101,6 +127,8 @@ async function handleAppleAuth(request, response) {
         if (!user.name && verified.name) { user.name = verified.name; updated = true; }
         if (updated) await user.save();
     }
+
+    await ensureAccountIdentity(user);
 
     const sessionToken = createSessionToken({ userId, email: user.email });
     const userData = user.toObject();
@@ -138,11 +166,12 @@ authRouter.get("/me", async (request, response) => {
     if (!userId) {
         throw new HttpError(401, "Not authenticated", "UNAUTHORIZED");
     }
-    const user = await UserModel.findOne({ userId }).lean();
+    const user = await UserModel.findOne({ userId });
     if (!user) {
         throw new HttpError(404, "User not found", "NOT_FOUND");
     }
-    response.json({ data: user });
+    await ensureAccountIdentity(user);
+    response.json({ data: user.toObject() });
 });
 
 authRouter.all("/clean-mock-data", async (_request, response) => {

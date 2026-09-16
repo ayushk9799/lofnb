@@ -6,6 +6,7 @@ const schema = z.object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PORT: z.coerce.number().int().positive().default(4000),
     MONGODB_URI: z.string().min(1),
+    SESSION_SECRET: optionalString,
     CORS_ORIGIN: z.string().default("http://localhost:5173"),
     MATCH_RATE: z.coerce.number().min(0).max(1).default(1),
     OPENAI_API_KEY: optionalString,
@@ -30,6 +31,8 @@ const schema = z.object({
     EMBEDDING_MODEL: optionalString,
     EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(1536),
     GOOGLE_CLIENT_ID: optionalString.default("50299044849-tl8kc7h49rcbl5aicfs41eg49tf3bmkn.apps.googleusercontent.com"),
+    APPLE_CLIENT_ID: optionalString.default("com.thousandways.lofn"),
+    APPLE_CLIENT_IDS: optionalString,
     ALLOW_DEV_AUTH: z
         .enum(["true", "false"])
         .default("false")
@@ -40,6 +43,9 @@ const schema = z.object({
     R2_BUCKET_NAME: optionalString,
     R2_PUBLIC_URL: optionalUrl,
     REVENUECAT_WEBHOOK_SECRET: optionalString,
+    REVENUECAT_PROJECT_ID: optionalString,
+    REVENUECAT_SECRET_KEY: optionalString,
+    REVENUECAT_ENTITLEMENT_ID: z.string().default("premium"),
 });
 export function loadEnvironment(source = process.env) {
     const isOpenRouter = Boolean(
