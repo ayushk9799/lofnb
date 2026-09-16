@@ -2,6 +2,9 @@ import { Schema, model } from "mongoose";
 
 const userSchema = new Schema({
     userId: { type: String, required: true, unique: true, index: true },
+    // Private, opaque customer identifier shared with RevenueCat.
+    // Existing users may not have this field until their next authenticated login.
+    accountId: { type: String, unique: true, sparse: true, index: true },
     email: { type: String, lowercase: true, trim: true, default: "" },
     authProvider: { type: String, enum: ["google", "apple", "dev"], default: "dev" },
     providerId: { type: String, default: "" },
@@ -24,6 +27,8 @@ const userSchema = new Schema({
     premiumEntitlement: { type: String, default: "" },
     premiumExpiresAt: { type: Date },
     revenueCatAppUserId: { type: String, index: true },
+    revenueCatEventAt: { type: Date },
+    lastDailyHeartsClaimedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 export const UserModel = model("User", userSchema);

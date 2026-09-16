@@ -13,6 +13,7 @@ import { profileRouter } from "./routes/profile.routes.js";
 import { relationshipsRouter } from "./routes/relationships.routes.js";
 import { storageRouter, uploadRouter } from "./routes/upload.routes.js";
 import { createWebhookRouter } from "./routes/webhook.routes.js";
+import { createCurrencyRouter } from "./routes/currency.routes.js";
 export function createApp({ env, llm, embeddingProvider, storage = new StorageService(env) }) {
     const app = express();
     app.locals.storage = storage;
@@ -40,6 +41,8 @@ export function createApp({ env, llm, embeddingProvider, storage = new StorageSe
     app.use("/api/profile", profileRouter);
     app.use("/api/user/profile", profileRouter);
     app.use("/api/user", profileRouter);
+    app.use("/api/gems", createCurrencyRouter({ env }));
+    app.use("/api/currency", createCurrencyRouter({ env }));
     app.use("/api/upload", uploadRouter);
     app.use("/api/characters", charactersRouter);
     app.use("/api/relationships", relationshipsRouter);
