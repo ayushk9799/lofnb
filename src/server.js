@@ -2,9 +2,10 @@ import { createServer } from "node:http";
 import { createApp } from "./app.js";
 import { connectDatabase, disconnectDatabase } from "./config/database.js";
 import { env } from "./config/env.js";
-import { createEmbeddingProvider, createLlmProvider, } from "./providers/provider-factory.js";
+import { createEmbeddingProvider, createLlmProvider, createMediaProvider, createVisionProvider, } from "./providers/provider-factory.js";
 import { startMemoryWorker } from "./workers/memory.worker.js";
 import { startProactiveWorker } from "./workers/proactive.worker.js";
+import { startOpenerWorker } from "./workers/opener.worker.js";
 import { UserModel } from "./models/user.model.js";
 import { RelationshipModel } from "./models/relationship.model.js";
 import { MessageModel } from "./models/message.model.js";
@@ -12,6 +13,8 @@ import { MemoryModel } from "./models/memory.model.js";
 
 const llm = createLlmProvider(env);
 const embeddingProvider = createEmbeddingProvider(env);
+const visionLlm = createVisionProvider(env);
+const mediaProvider = createMediaProvider(env);
 await connectDatabase(env.MONGODB_URI);
 
 // Auto-purge any leftover mock/dev users from database
@@ -38,13 +41,16 @@ try {
     console.warn("Mock cleanup warning:", err.message);
 }
 
-const app = createApp({ env, llm, embeddingProvider });
+const app = createApp({ env, llm, embeddingProvider, visionLlm, mediaProvider });
 const server = createServer(app);
 const stopMemoryWorker = llm
     ? startMemoryWorker({ llm, embeddingProvider })
     : () => undefined;
 const stopProactiveWorker = llm
     ? startProactiveWorker({ llm })
+    : () => undefined;
+const stopOpenerWorker = llm
+    ? startOpenerWorker({ llm })
     : () => undefined;
 server.listen(env.PORT, () => {
     console.log(`Lofn API listening on http://localhost:${env.PORT}`);
@@ -58,7 +64,7 @@ async function shutdown(signal) {
         return;
     shuttingDown = true;
     console.log(`Received ${signal}; shutting down`);
-    const drained = Promise.all([stopMemoryWorker(), stopProactiveWorker()]);
+    const drained = Promise.all([stopMemoryWorker(), stopProactiveWorker(), stopOpenerWorker()]);
     server.close(async () => {
         await drained;
         await disconnectDatabase();

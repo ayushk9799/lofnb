@@ -3,6 +3,7 @@ import { upload } from "../middleware/upload.js";
 import { createHash } from "node:crypto";
 
 import { HttpError } from "../utils/http-error.js";
+import { requireOwnedRelationship } from "../services/relationship.service.js";
 export const uploadRouter = Router();
 export const storageRouter = Router();
 uploadRouter.post("/", upload.single("file"), async (request, response, next) => {
@@ -12,6 +13,7 @@ uploadRouter.post("/", upload.single("file"), async (request, response, next) =>
         }
         let folder;
         if (request.body?.relationshipId) {
+            await requireOwnedRelationship(request.body.relationshipId, request.auth.userId);
             folder = `messages/${request.body.relationshipId}`;
         } else {
             folder = `users/${createHash("sha256").update(request.auth.userId).digest("hex")}`;

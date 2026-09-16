@@ -8,6 +8,15 @@ import { sendChatPushNotification } from "./push-notification.service.js";
 
 export async function initiateScenario({relationshipId, userId, llm, userTimezone, signal, triggerType = "check_in"}) {
     if (!llm) throw new HttpError(503, "The LLM provider is not configured", "LLM_NOT_CONFIGURED");
+    // An opener is only ever the first message. If either side already spoke,
+    // mark it done so the worker stops retrying and nothing is sent.
+    if (triggerType === "opener") {
+        const anyMessage = await MessageModel.exists({relationshipId, status: {$in: ["completed", "partial", "streaming"]}});
+        if (anyMessage) {
+            await RelationshipModel.updateOne({_id: relationshipId}, {$set: {openerSentAt: new Date()}});
+            return null;
+        }
+    }
     // Older clients may still request timed bubbles. Never double-text a tone repair.
     if (["follow_up", "idle_nudge", "left_on_read"].includes(triggerType)) {
         const latestUser = await MessageModel.findOne({relationshipId, role: "user", status: "completed"})
@@ -23,6 +32,9 @@ export async function initiateScenario({relationshipId, userId, llm, userTimezon
         role: "assistant", origin: "initiated", content, status: "completed", completedAt: new Date(),
         generation: {provider: llm.name, model: llm.model},
     });
+    if (triggerType === "opener") {
+        await RelationshipModel.updateOne({_id: relationshipId}, {$set: {openerSentAt: new Date(), lastInitiatedAt: new Date()}});
+    }
 
     try {
         const rel = await RelationshipModel.findById(relationshipId).populate("characterId").lean();

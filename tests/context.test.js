@@ -109,6 +109,9 @@ it("requires direct short replies without profile performance", () => {
   expect(prompt).toContain("one text bubble of 3–35 words");
   expect(prompt).toContain("Do not perform your profile");
   expect(prompt).toContain("Asking their name is optional");
+  expect(prompt).toContain("%%PHOTO scene | short visual description%%");
+  expect(prompt).toContain("%%VOICE | the words you are speaking%%");
+  expect(prompt).toContain("Never say you cannot send audio");
   expect(prompt).not.toContain("STRICTLY BAN");
   expect(prompt).not.toContain("DEFLECTION & DODGE AWARENESS");
 });

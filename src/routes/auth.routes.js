@@ -4,6 +4,7 @@ import { UserModel } from "../models/user.model.js";
 import { RelationshipModel } from "../models/relationship.model.js";
 import { MessageModel } from "../models/message.model.js";
 import { MemoryModel } from "../models/memory.model.js";
+import { SwipeModel } from "../models/swipe.model.js";
 import {
     createSessionToken,
     verifyAppleToken,
@@ -154,11 +155,12 @@ authRouter.all("/clean-mock-data", async (_request, response) => {
     };
     const mockUsers = await UserModel.find(mockFilter).select("userId");
     const ids = mockUsers.map(u => u.userId);
-    const [deletedUsers, deletedRel, deletedMsg, deletedMem] = await Promise.all([
+    const [deletedUsers, deletedRel, deletedMsg, deletedMem, deletedSwipes] = await Promise.all([
         UserModel.deleteMany(mockFilter),
         RelationshipModel.deleteMany({ userId: { $in: ids } }),
         MessageModel.deleteMany({ userId: { $in: ids } }),
         MemoryModel.deleteMany({ userId: { $in: ids } }),
+        SwipeModel.deleteMany({ userId: { $in: ids } }),
     ]);
 
     response.json({
@@ -169,7 +171,7 @@ authRouter.all("/clean-mock-data", async (_request, response) => {
             relationships: deletedRel.deletedCount,
             messages: deletedMsg.deletedCount,
             memories: deletedMem.deletedCount,
+            swipes: deletedSwipes.deletedCount,
         },
     });
 });
-

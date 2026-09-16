@@ -62,6 +62,7 @@ const characterSchema = new Schema({
         pastRelationships: { type: String, maxlength: 1_000 },
     },
     hobbies: [{ type: String, maxlength: 100 }],
+    matchProbability: { type: Number, min: 0, max: 1 },
     version: { type: Number, required: true, default: 1, min: 1 },
 }, { timestamps: true });
 export const CharacterModel = model("Character", characterSchema);

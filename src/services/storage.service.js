@@ -115,10 +115,29 @@ export class StorageService {
             return {
                 stream: createReadStream(localPath),
                 contentLength: stat.size,
-                contentType: ({png:"image/png",jpg:"image/jpeg",webp:"image/webp",gif:"image/gif",mp3:"audio/mpeg",wav:"audio/wav",ogg:"audio/ogg"})[path.extname(key).slice(1)] || "application/octet-stream",
+                contentType: ({png:"image/png",jpg:"image/jpeg",webp:"image/webp",gif:"image/gif",mp3:"audio/mpeg",wav:"audio/wav",ogg:"audio/ogg",m4a:"audio/mp4",aac:"audio/aac"})[path.extname(key).slice(1)] || "application/octet-stream",
             };
         }
         return null;
+    }
+    async readBuffer(key, maxBytes = 12 * 1024 * 1024) {
+        const object = await this.getObject(key);
+        if (!object) throw new HttpError(404, "Media file not found", "MEDIA_NOT_FOUND");
+        if (object.contentLength && object.contentLength > maxBytes) {
+            object.stream.destroy();
+            throw new HttpError(413, "Media file is too large", "MEDIA_TOO_LARGE");
+        }
+        const chunks = [];
+        let size = 0;
+        for await (const chunk of object.stream) {
+            size += chunk.length;
+            if (size > maxBytes) {
+                object.stream.destroy();
+                throw new HttpError(413, "Media file is too large", "MEDIA_TOO_LARGE");
+            }
+            chunks.push(chunk);
+        }
+        return { buffer: Buffer.concat(chunks), mimeType: object.contentType };
     }
     async delete(key) {
         this.validateKey(key);

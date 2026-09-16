@@ -35,6 +35,13 @@ const relationshipSchema = new Schema({
     chatLease: { token: String, expiresAt: Date },
     lastMessageAt: { type: Date },
     lastInitiatedAt: { type: Date },
+    // When the match was decided. Kept separate from createdAt so a delayed
+    // reveal can be modelled later without touching the document's birth.
+    matchedAt: { type: Date },
+    // The companion texts first shortly after a match. openerDueAt is when the
+    // opener worker may send it; openerSentAt marks it done (or skipped).
+    openerDueAt: { type: Date },
+    openerSentAt: { type: Date },
     userLastReadSequence: { type: Number, default: 0, min: 0 },
     userLastReadAt: { type: Date },
     companionLastReadSequence: { type: Number, default: 0, min: 0 },
@@ -42,4 +49,5 @@ const relationshipSchema = new Schema({
     nextSequence: { type: Number, default: 0, min: 0, select: false },
 }, { timestamps: true });
 relationshipSchema.index({ userId: 1, characterId: 1 }, { unique: true });
+relationshipSchema.index({ openerDueAt: 1 }, { partialFilterExpression: { openerDueAt: { $exists: true } } });
 export const RelationshipModel = model("Relationship", relationshipSchema);

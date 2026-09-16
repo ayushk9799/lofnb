@@ -191,6 +191,155 @@ it("retries a failed empty reply without duplicating the user message", async ()
     status: "completed",
   });
 });
+it("attaches a generated photo when the model tags a scene, and strips the tag", async () => {
+  const png = Buffer.from("89504e470d0a1a0a", "hex");
+  const generateImage = vi.fn(async () => ({
+    buffer: png,
+    mimeType: "image/png",
+    model: "test-image",
+  }));
+  const upload = vi.fn(async () => ({
+    url: "/api/storage/messages/rel/table.png",
+    key: "messages/rel/table.png",
+    mimeType: "image/png",
+    size: 12,
+  }));
+  await reply({
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "a walnut dining table for a client.\n%%PHOTO scene | walnut table being sanded in the shop%%";
+      },
+    },
+    mediaProvider: { generateImage },
+    storage: { upload },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.content).toBe("a walnut dining table for a client.");
+  expect(assistant.mediaType).toBe("image");
+  expect(assistant.mediaUrl).toBe("/api/storage/messages/rel/table.png");
+  expect(assistant.mediaMeta.source).toBe("generated");
+  expect(generateImage).toHaveBeenCalledOnce();
+  expect(upload).toHaveBeenCalledOnce();
+});
+it("reuses a gallery photo instead of generating when the tag matches a caption", async () => {
+  const generateImage = vi.fn();
+  await reply({
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "that's the one from last week.\n%%PHOTO gallery | Original%%";
+      },
+    },
+    mediaProvider: { generateImage },
+    storage: { upload: vi.fn() },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.content).toBe("that's the one from last week.");
+  expect(assistant.mediaType).toBe("image");
+  expect(assistant.mediaUrl).toBe("https://example.com/photo.png");
+  expect(assistant.mediaMeta.source).toBe("gallery");
+  expect(generateImage).not.toHaveBeenCalled();
+});
+it("keeps the text reply if photo generation fails", async () => {
+  await reply({
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "sanding it down.\n%%PHOTO scene | workshop table%%";
+      },
+    },
+    mediaProvider: {
+      generateImage: async () => {
+        throw new Error("image model down");
+      },
+    },
+    storage: { upload: vi.fn() },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.status).toBe("completed");
+  expect(assistant.content).toBe("sanding it down.");
+  expect(assistant.mediaType).toBeUndefined();
+});
+it("attaches synthesized audio when the model tags a voice note, and strips the tag", async () => {
+  const synthesize = vi.fn(async () => ({
+    buffer: Buffer.from("ID3"),
+    mimeType: "audio/mpeg",
+    model: "test-tts",
+  }));
+  const upload = vi.fn(async () => ({
+    url: "/api/storage/messages/rel/voice.mp3",
+    key: "messages/rel/voice.mp3",
+    mimeType: "audio/mpeg",
+    size: 24,
+  }));
+  await reply({
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "one sec\n%%VOICE | hey, wrapping the table now%%";
+      },
+    },
+    mediaProvider: { synthesize },
+    storage: { upload },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.content).toBe("one sec");
+  expect(assistant.mediaType).toBe("audio");
+  expect(assistant.mediaUrl).toBe("/api/storage/messages/rel/voice.mp3");
+  expect(assistant.mediaMeta.transcript).toBe("hey, wrapping the table now");
+  expect(synthesize).toHaveBeenCalledOnce();
+  expect(synthesize.mock.calls[0][0].text).toBe("hey, wrapping the table now");
+});
+it("synthesizes a voice note when the user asks even without a tag", async () => {
+  const synthesize = vi.fn(async () => ({
+    buffer: Buffer.from("ID3"),
+    mimeType: "audio/mpeg",
+    model: "test-tts",
+  }));
+  const upload = vi.fn(async () => ({
+    url: "/api/storage/messages/rel/asked.mp3",
+    key: "messages/rel/asked.mp3",
+    mimeType: "audio/mpeg",
+    size: 18,
+  }));
+  await reply({
+    body: { content: "send a voice note", clientMessageId: "request-voice" },
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "sure, wrapping up at the shop.";
+      },
+    },
+    mediaProvider: { synthesize },
+    storage: { upload },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.mediaType).toBe("audio");
+  expect(assistant.mediaMeta.transcript).toBe("sure, wrapping up at the shop.");
+  expect(synthesize).toHaveBeenCalledOnce();
+});
+it("keeps the text reply if voice synthesis fails", async () => {
+  await reply({
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "one sec\n%%VOICE | wrapping up%%";
+      },
+    },
+    mediaProvider: {
+      synthesize: async () => {
+        throw new Error("speech model down");
+      },
+    },
+    storage: { upload: vi.fn() },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.status).toBe("completed");
+  expect(assistant.content).toBe("one sec");
+  expect(assistant.mediaType).toBeUndefined();
+});
+
 it("recovers stale streams without touching a current lease", async () => {
   await MessageModel.create({
     relationshipId: relationship._id,

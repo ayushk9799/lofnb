@@ -22,7 +22,7 @@ export const relationshipsRouter = Router();
 relationshipsRouter.get("/", async (request, response) => {
     const relationships = await RelationshipModel.find({ userId: request.auth.userId })
         .sort({ lastMessageAt: -1, createdAt: -1 })
-        .populate("characterId", "slug name age avatarUrl ethnicity occupation location gallery persona.summary persona.personalityTraits persona.values persona.boundaries hobbies")
+        .populate("characterId", "slug name age avatarUrl photos ethnicity occupation location gallery persona.summary persona.personalityTraits persona.values persona.boundaries hobbies")
         .lean();
     const relationshipsWithUnread = await Promise.all(
         relationships.map(async (rel) => {
@@ -49,7 +49,7 @@ relationshipsRouter.post("/", async (request, response) => {
             stage: "new",
             mood: "neutral",
         },
-    }, { new: true, upsert: true, setDefaultsOnInsert: true }).populate("characterId", "slug name age avatarUrl ethnicity occupation location gallery persona.summary persona.personalityTraits persona.values persona.boundaries hobbies");
+    }, { new: true, upsert: true, setDefaultsOnInsert: true }).populate("characterId", "slug name age avatarUrl photos ethnicity occupation location gallery persona.summary persona.personalityTraits persona.values persona.boundaries hobbies");
     response.status(201).json({ data: relationship });
 });
 relationshipsRouter.get("/:relationshipId", async (request, response) => {
@@ -107,7 +107,7 @@ relationshipsRouter.get("/:relationshipId/messages", async (request, response) =
     const messages = await MessageModel.find(filter)
         .sort({ sequenceNumber: -1 })
         .limit(query.limit)
-        .select("sequenceNumber role content status createdAt completedAt readAt mediaUrl mediaType mediaMeta clientMessageId")
+        .select("sequenceNumber role content status createdAt completedAt readAt mediaUrl mediaKey mediaType mediaMeta clientMessageId")
         .lean();
     response.json({ data: messages.reverse() });
 });

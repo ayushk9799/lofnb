@@ -15,6 +15,10 @@ export function errorHandler(error, _request, response, _next) {
     if (error.code === 11000) error = new HttpError(409, "This operation conflicts with an existing record", "CONFLICT");
     if (error.name === "ValidationError" || error.name === "CastError") error = new HttpError(400, "Invalid record data", "VALIDATION_ERROR");
     if (error.name === "MulterError") error = new HttpError(error.code === "LIMIT_FILE_SIZE" ? 413 : 400, "Upload rejected: use one file up to 10 MB", "INVALID_UPLOAD");
+    // busboy surfaces a truncated multipart body from the client as a plain Error.
+    if (/Unexpected end of form|Malformed part header|Unexpected end of multipart data/i.test(error?.message || "")) {
+        error = new HttpError(400, "The upload was interrupted before the file finished sending. Please try again.", "UPLOAD_INTERRUPTED");
+    }
     if (error.type === "entity.parse.failed") error = new HttpError(400, "Invalid JSON", "INVALID_JSON");
     if (error.type === "entity.too.large") error = new HttpError(413, "Request is too large", "PAYLOAD_TOO_LARGE");
     if (error instanceof ZodError) {
@@ -33,8 +37,13 @@ export function errorHandler(error, _request, response, _next) {
         });
         return;
     }
-    console.error(error);
+    console.error(`[${_request.method} ${_request.originalUrl}]`, error);
+    const exposeCause = process.env.NODE_ENV !== "production";
     response.status(500).json({
-        error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred" },
+        error: {
+            code: "INTERNAL_ERROR",
+            message: "An unexpected error occurred",
+            ...(exposeCause && error?.message ? { detail: String(error.message).slice(0, 500) } : {}),
+        },
     });
 }

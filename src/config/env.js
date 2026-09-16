@@ -7,12 +7,19 @@ const schema = z.object({
     PORT: z.coerce.number().int().positive().default(4000),
     MONGODB_URI: z.string().min(1),
     CORS_ORIGIN: z.string().default("http://localhost:5173"),
+    MATCH_RATE: z.coerce.number().min(0).max(1).default(1),
     OPENAI_API_KEY: optionalString,
     OPENAI_MODEL: optionalString,
     OPENROUTER_API_KEY: optionalString,
     LLM_BASE_URL: optionalUrl,
     LLM_API_KEY: optionalString,
     LLM_MODEL: optionalString,
+    VISION_MODEL: optionalString,
+    TRANSCRIPTION_MODEL: optionalString,
+    AUDIO_MODEL: optionalString,
+    SPEECH_MODEL: optionalString,
+    IMAGE_GENERATION_MODEL: optionalString,
+    SPEECH_VOICE: optionalString,
     MEMORY_VECTOR_SEARCH_ENABLED: z
         .enum(["true", "false"])
         .default("false")
@@ -54,6 +61,19 @@ export function loadEnvironment(source = process.env) {
         LLM_MODEL: source.LLM_MODEL ||
             source.OPENAI_MODEL ||
             (effectiveApiKey ? defaultModel : undefined),
+        VISION_MODEL: source.VISION_MODEL ||
+            (effectiveApiKey ? (isOpenRouter ? "openai/gpt-5.6-luna" : "gpt-5.6-luna") : undefined),
+        TRANSCRIPTION_MODEL: source.TRANSCRIPTION_MODEL ||
+            (effectiveApiKey ? (isOpenRouter ? "openai/gpt-transcribe" : "gpt-transcribe") : undefined),
+        // Chat model with native audio input; the fallback when the
+        // transcription endpoint fails or cannot decode a voice note.
+        AUDIO_MODEL: source.AUDIO_MODEL ||
+            (effectiveApiKey ? (isOpenRouter ? "google/gemini-2.5-flash" : "gpt-4o-audio-preview") : undefined),
+        SPEECH_MODEL: source.SPEECH_MODEL ||
+            (effectiveApiKey ? (isOpenRouter ? "openai/gpt-audio-mini" : "gpt-4o-mini-tts") : undefined),
+        IMAGE_GENERATION_MODEL: source.IMAGE_GENERATION_MODEL ||
+            (effectiveApiKey ? (isOpenRouter ? "openai/gpt-image-2.5-flare" : "gpt-image-2.5-flare") : undefined),
+        SPEECH_VOICE: source.SPEECH_VOICE || "alloy",
         EMBEDDING_API_KEY: effectiveEmbeddingKey,
         EMBEDDING_BASE_URL: source.EMBEDDING_BASE_URL ||
             (effectiveEmbeddingKey ? defaultEmbeddingBaseUrl : undefined),

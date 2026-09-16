@@ -6,6 +6,7 @@ import { MessageModel } from "../models/message.model.js";
 import { MemoryModel } from "../models/memory.model.js";
 import { MemoryJobModel } from "../models/memory-job.model.js";
 import { RelationshipModel } from "../models/relationship.model.js";
+import { SwipeModel } from "../models/swipe.model.js";
 import { HttpError } from "../utils/http-error.js";
 import { upload } from "../middleware/upload.js";
 
@@ -154,6 +155,7 @@ profileRouter.delete("/", async (request, response) => {
 
     // 4. Delete all relationships
     await RelationshipModel.deleteMany({ userId });
+    await SwipeModel.deleteMany({ userId });
 
     // 5. Clean up user avatar in storage if present
     if (user?.avatarKey) {
