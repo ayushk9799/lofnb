@@ -62,6 +62,24 @@ it("requests low verbosity from GPT-5 chat models", async () => {
   }
   const options = fetch.mock.calls[0][1];
   expect(JSON.parse(options.body).verbosity).toBe("low");
+  expect(JSON.parse(options.body).reasoning).toEqual({ effort: "none" });
+});
+it("turns reasoning off for GPT-5.6 Luna", async () => {
+  response(['data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n']);
+  const luna = new OpenAiCompatibleProvider({
+    baseUrl: "https://openrouter.ai/api/v1",
+    apiKey: "test",
+    model: "openai/gpt-5.6-luna",
+  });
+  for await (const _chunk of luna.streamChat({ messages: [] })) {
+    /* consume */
+  }
+  const body = JSON.parse(fetch.mock.calls[0][1].body);
+  expect(body.model).toBe("openai/gpt-5.6-luna");
+  expect(body.verbosity).toBe("low");
+  expect(body.reasoning).toEqual({ effort: "none" });
+  expect(body.include_reasoning).toBeUndefined();
+  expect(body.temperature).toBeUndefined();
 });
 it("accepts alternative valid finish reasons such as end_turn and eos", async () => {
   response([

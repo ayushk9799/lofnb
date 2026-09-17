@@ -4,8 +4,11 @@ import {
   collectCameraRoll,
   decideCompanionPhoto,
   extractPhotoIntent,
+  looksLikePhotoFollowUp,
   matchGalleryPhoto,
   pickCameraRollPhoto,
+  replyRefusesPhoto,
+  userAskedForPhoto,
 } from "../src/services/companion-photo.service.js";
 
 it("strips a photo tag and keeps the visible text", () => {
@@ -16,6 +19,16 @@ it("strips a photo tag and keeps the visible text", () => {
   expect(parsed.intent).toEqual({
     query: "walnut dining table being sanded in a workshop",
   });
+});
+
+it("treats short pushes as photo follow-ups", () => {
+  expect(looksLikePhotoFollowUp("Please")).toBe(true);
+  expect(looksLikePhotoFollowUp("Send na")).toBe(true);
+  expect(userAskedForPhoto("Send na")).toBe(true);
+  expect(looksLikePhotoFollowUp("hey")).toBe(false);
+  expect(userAskedForPhoto("Send voice note na")).toBe(false);
+  expect(looksLikePhotoFollowUp("Send audio please")).toBe(false);
+  expect(replyRefusesPhoto("still no. i'm not sending a personal photo.")).toBe(true);
 });
 
 it("returns no intent when the model did not tag a photo", () => {

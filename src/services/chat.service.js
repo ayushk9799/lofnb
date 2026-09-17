@@ -5,7 +5,7 @@ import { MemoryJobModel } from "../models/memory-job.model.js";
 import { requireOwnedRelationship } from "./relationship.service.js";
 import { allocateMessageSequence } from "./sequence.service.js";
 import { assembleContext } from "./context.service.js";
-import { attachCompanionPhoto, extractPhotoIntent } from "./companion-photo.service.js";
+import { attachCompanionPhoto, countPriorPhotoRefusals, extractPhotoIntent } from "./companion-photo.service.js";
 import { attachCompanionVoice, extractVoiceIntent } from "./companion-voice.service.js";
 import { resolveCompanionMedia } from "./companion-media.service.js";
 import { intentsFromToolCalls, toolsForCompanionTurn } from "./companion-tools.js";
@@ -64,6 +64,36 @@ export async function transcribeVoiceNote({mediaProvider, media, mediaKey, signa
         throw new HttpError(422, "We couldn't hear anything in that voice note. Try recording again, a little closer to the mic.", "EMPTY_VOICE_NOTE");
     }
     return {...transcript, text};
+}
+
+function toolFollowUpContent(name) {
+    if (name === "send_photo") return "Photo will attach. Write the chat bubble like you dropped it. Do not mention tools.";
+    if (name === "refuse_photo") return "You are not sending a photo. Write the no in the bubble. Do not mention tools.";
+    if (name === "send_voice_note") return "Voice note will attach. Write a short bubble. Do not mention tools.";
+    if (name === "refuse_voice_note") return "You are not sending a voice note. Write the no in the bubble. Do not mention tools.";
+    return "This turn is text only. Write the chat bubble. Do not mention tools.";
+}
+
+function toolFollowUpMessages(toolCalls = []) {
+    const calls = toolCalls.map((call, index) => {
+        const args = call?.function?.arguments ?? call?.arguments ?? "{}";
+        return {
+            id: call?.id || `call_${index + 1}`,
+            type: "function",
+            function: {
+                name: call?.function?.name || call?.name || "",
+                arguments: typeof args === "string" ? args : JSON.stringify(args || {}),
+            },
+        };
+    }).filter((call) => call.function.name);
+    return [
+        { role: "assistant", content: null, tool_calls: calls },
+        ...calls.map((call) => ({
+            role: "tool",
+            tool_call_id: call.id,
+            content: toolFollowUpContent(call.function.name),
+        })),
+    ];
 }
 
 export async function generateReply({relationshipId, userId, body, env, llm, visionLlm, mediaProvider, storage, embeddingProvider, signal, emit}) {
@@ -161,27 +191,40 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             emit("seen", { userMessageId: user._id, userSequence: user.sequenceNumber, seenAt: seenAt.toISOString() });
             emit("message", {id: assistant._id, userId: user._id, userSequence: user.sequenceNumber, sequenceNumber: assistant.sequenceNumber});
             let toolCalls = [];
-            const mediaTurn = toolsForCompanionTurn(currentMessage);
-            for await (const chunk of selectedLlm.streamChat({
+            const priorPhotoRefusals = await countPriorPhotoRefusals(relationshipId, user.sequenceNumber);
+            const mediaTurn = toolsForCompanionTurn(currentMessage, {
+                model: selectedLlm.model,
+                priorPhotoRefusals,
+            });
+            const consume = async (stream) => {
+                for await (const chunk of stream) {
+                    generationSignal.throwIfAborted();
+                    if (chunk && typeof chunk === "object" && Array.isArray(chunk.toolCalls)) {
+                        if (!toolCalls.length) toolCalls = chunk.toolCalls;
+                        continue;
+                    }
+                    const text = typeof chunk === "string" ? chunk : "";
+                    if (!text) continue;
+                    content += text;
+                    if (content.length > 100_000) throw new Error("Reply is too long");
+                    emit("delta", {content: text});
+                    if (Date.now() - lastPersisted > 1000) {
+                        await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: {content}});
+                        lastPersisted = Date.now();
+                    }
+                }
+            };
+            await consume(selectedLlm.streamChat({
                 messages: context.messages,
                 tools: mediaTurn.tools,
                 toolChoice: mediaTurn.toolChoice,
                 signal: generationSignal,
-            })) {
-                generationSignal.throwIfAborted();
-                if (chunk && typeof chunk === "object" && Array.isArray(chunk.toolCalls)) {
-                    toolCalls = chunk.toolCalls;
-                    continue;
-                }
-                const text = typeof chunk === "string" ? chunk : "";
-                if (!text) continue;
-                content += text;
-                if (content.length > 100_000) throw new Error("Reply is too long");
-                emit("delta", {content: text});
-                if (Date.now() - lastPersisted > 1000) {
-                    await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: {content}});
-                    lastPersisted = Date.now();
-                }
+            }));
+            if (!content.trim() && toolCalls.length) {
+                await consume(selectedLlm.streamChat({
+                    messages: [...context.messages, ...toolFollowUpMessages(toolCalls)],
+                    signal: generationSignal,
+                }));
             }
             generationSignal.throwIfAborted();
             const fromTools = intentsFromToolCalls(toolCalls);
@@ -190,14 +233,14 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             const resolved = resolveCompanionMedia({
                 toolPhoto: fromTools.photo || taggedPhoto.intent,
                 toolVoice: fromTools.voice,
+                toolText: fromTools.text,
                 userText: currentMessage,
                 replyText: content,
-                photoNeeded: mediaTurn.photoNeeded,
-                voiceNeeded: mediaTurn.voiceNeeded,
+                forceSend: mediaTurn.forceSend,
             });
             const photoIntent = resolved.photo;
             const voiceIntent = resolved.voice;
-            if (!content.trim() && fromTools.photo?.action === "refuse") {
+            if (!content.trim() && fromTools.photo?.action === "refuse" && !mediaTurn.forceSend) {
                 content = fromTools.photo.reason || "not sending one.";
             } else if (!content.trim() && fromTools.voice?.action === "refuse") {
                 content = fromTools.voice.reason || "not sending a voice note.";

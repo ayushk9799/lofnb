@@ -304,7 +304,7 @@ it("does not attach a photo when she called refuse_photo", async () => {
     model: "test-image",
   }));
   await reply({
-    body: { content: "Send pic na", clientMessageId: "refuse-photo" },
+    body: { content: "can I see you", clientMessageId: "refuse-photo" },
     llm: {
       ...llm,
       async *streamChat() {
@@ -328,32 +328,99 @@ it("does not attach a photo when she called refuse_photo", async () => {
   expect(assistant.generation.mediaDecision).toBe("image_refused");
   expect(generateImage).not.toHaveBeenCalled();
 });
-it("treats a photo ask with no tool call as image refused", async () => {
+it("attaches a photo when they asked and she skipped refuse_photo", async () => {
   const generateImage = vi.fn(async () => ({
     buffer: Buffer.from("iVBORw0KGgo=", "base64"),
     mimeType: "image/png",
     model: "test-image",
   }));
+  const upload = vi.fn(async () => ({
+    url: "/api/storage/messages/rel/asked.png",
+    key: "messages/rel/asked.png",
+    mimeType: "image/png",
+    size: 12,
+  }));
   let seen;
   await reply({
-    body: { content: "Send pic na", clientMessageId: "skip-photo-tool" },
+    body: { content: "can I see you", clientMessageId: "skip-photo-tool" },
     llm: {
       ...llm,
       async *streamChat(args) {
         seen = args;
-        yield "still no. this isn't changing.";
+        yield "here, from earlier.";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "send_photo",
+              arguments: JSON.stringify({ what: "stoop at dusk" }),
+            },
+          }],
+        };
       },
     },
     mediaProvider: { generateImage },
-    storage: { upload: vi.fn() },
+    storage: { upload },
   });
   expect(seen.toolChoice).toBe("required");
-  expect(seen.tools.map((tool) => tool.function.name)).toEqual(["send_photo", "refuse_photo"]);
+  expect(seen.tools.map((tool) => tool.function.name)).toEqual([
+    "text",
+    "send_photo",
+    "refuse_photo",
+    "send_voice_note",
+    "refuse_voice_note",
+  ]);
   const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
-  expect(assistant.content).toBe("still no. this isn't changing.");
+  expect(assistant.content).toBe("here, from earlier.");
+  expect(assistant.mediaType).toBe("image");
+  expect(assistant.generation.mediaDecision).toBe("image_sent");
+  expect(generateImage).toHaveBeenCalledOnce();
+});
+it("lets her classify a text turn with the text tool", async () => {
+  let seen;
+  await reply({
+    llm: {
+      ...llm,
+      async *streamChat(args) {
+        seen = args;
+        yield "hey";
+        yield { toolCalls: [{ function: { name: "text", arguments: "{}" } }] };
+      },
+    },
+  });
+  expect(seen.toolChoice).toBe("required");
+  expect(seen.tools.map((tool) => tool.function.name)).toEqual([
+    "text",
+    "send_photo",
+    "refuse_photo",
+    "send_voice_note",
+    "refuse_voice_note",
+  ]);
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.content).toBe("hey");
   expect(assistant.mediaType).toBeUndefined();
-  expect(assistant.generation.mediaDecision).toBe("image_refused");
-  expect(generateImage).not.toHaveBeenCalled();
+  expect(assistant.generation.mediaDecision).toBe("text");
+});
+it("writes a chat bubble after a text tool call with no content", async () => {
+  let calls = 0;
+  await reply({
+    llm: {
+      ...llm,
+      async *streamChat() {
+        calls += 1;
+        if (calls === 1) {
+          yield { toolCalls: [{ id: "call_1", function: { name: "text", arguments: "{}" } }] };
+          return;
+        }
+        yield "hey";
+      },
+    },
+  });
+  expect(calls).toBe(2);
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.status).toBe("completed");
+  expect(assistant.content).toBe("hey");
+  expect(assistant.mediaType).toBeUndefined();
+  expect(assistant.generation.mediaDecision).toBe("text");
 });
 it("keeps the text reply if photo generation fails", async () => {
   await reply({
@@ -458,7 +525,7 @@ it("does not attach audio when she called refuse_voice_note", async () => {
     model: "test-tts",
   }));
   await reply({
-    body: { content: "send a voice note", clientMessageId: "refuse-voice" },
+    body: { content: "I wanna hear you", clientMessageId: "refuse-voice" },
     llm: {
       ...llm,
       async *streamChat() {
@@ -489,7 +556,7 @@ it("does not attach audio unless she called send_voice_note", async () => {
     model: "test-tts",
   }));
   await reply({
-    body: { content: "send a voice note", clientMessageId: "request-voice" },
+    body: { content: "I wanna hear your voice", clientMessageId: "request-voice" },
     llm: {
       ...llm,
       async *streamChat() {
@@ -502,7 +569,7 @@ it("does not attach audio unless she called send_voice_note", async () => {
   const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
   expect(assistant.content).toBe("sure, wrapping up at the shop.");
   expect(assistant.mediaType).toBeUndefined();
-  expect(assistant.generation.mediaDecision).toBe("audio_refused");
+  expect(assistant.generation.mediaDecision).toBe("text");
   expect(synthesize).not.toHaveBeenCalled();
 });
 it("keeps the text reply if voice synthesis fails", async () => {

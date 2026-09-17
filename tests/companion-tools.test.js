@@ -1,14 +1,21 @@
 import { expect, it } from "vitest";
 import { COMPANION_TOOLS, intentsFromToolCalls, toolsForCompanionTurn } from "../src/services/companion-tools.js";
 
-it("exposes send and refuse tools for photo and voice", () => {
+it("exposes text, send, and refuse tools", () => {
   expect(COMPANION_TOOLS.map((tool) => tool.function.name)).toEqual([
+    "text",
     "send_photo",
     "refuse_photo",
     "send_voice_note",
     "refuse_voice_note",
   ]);
   expect(COMPANION_TOOLS.every((tool) => tool.function.strict === true)).toBe(true);
+});
+
+it("maps the text tool", () => {
+  expect(intentsFromToolCalls([
+    { function: { name: "text", arguments: "{}" } },
+  ])).toEqual({ text: true, photo: null, voice: null });
 });
 
 it("maps send_photo to a send action", () => {
@@ -20,6 +27,7 @@ it("maps send_photo to a send action", () => {
       },
     },
   ])).toEqual({
+    text: false,
     photo: { action: "send", query: "brooklyn park at golden hour" },
     voice: null,
   });
@@ -34,6 +42,7 @@ it("maps refuse_photo to a refuse action", () => {
       },
     },
   ])).toEqual({
+    text: false,
     photo: { action: "refuse", reason: "don't send pics to strangers" },
     voice: null,
   });
@@ -73,27 +82,32 @@ it("maps refuse_voice_note to a refuse action", () => {
   ]).voice).toEqual({ action: "refuse", reason: "can't talk right now" });
 });
 
-it("requires a send or refuse tool when they asked for a photo", () => {
-  const turn = toolsForCompanionTurn("Send pic na");
-  expect(turn.photoNeeded).toBe(true);
-  expect(turn.toolChoice).toBe("required");
-  expect(turn.tools.map((tool) => tool.function.name)).toEqual(["send_photo", "refuse_photo"]);
+it("always offers every tool so she can classify any wording", () => {
+  const names = ["text", "send_photo", "refuse_photo", "send_voice_note", "refuse_voice_note"];
+  for (const message of ["You look so pretty yaar", "can I see you", "I wanna hear your voice", "Send voice note na"]) {
+    const turn = toolsForCompanionTurn(message);
+    expect(turn.toolChoice).toBe("required");
+    expect(turn.tools.map((tool) => tool.function.name)).toEqual(names);
+    expect(turn.forceSend).toBe(false);
+  }
 });
 
-it("does not offer media tools when only text is needed", () => {
-  expect(toolsForCompanionTurn("You look so pretty yaar")).toEqual({
+it("does not send tools to MythoMax, which cannot call them", () => {
+  expect(toolsForCompanionTurn("can I see you", { model: "gryphe/mythomax-l2-13b" })).toEqual({
     tools: undefined,
     toolChoice: undefined,
-    photoNeeded: false,
-    voiceNeeded: false,
+    forceSend: false,
   });
 });
 
-it("requires a send or refuse tool when they asked for a voice note", () => {
-  const turn = toolsForCompanionTurn("send a voice note");
-  expect(turn.voiceNeeded).toBe(true);
+it("only overrides a later photo refuse, and still offers every tool", () => {
+  const turn = toolsForCompanionTurn("I wanna hear your voice", { priorPhotoRefusals: 2 });
+  expect(turn.forceSend).toBe(true);
   expect(turn.toolChoice).toBe("required");
   expect(turn.tools.map((tool) => tool.function.name)).toEqual([
+    "text",
+    "send_photo",
+    "refuse_photo",
     "send_voice_note",
     "refuse_voice_note",
   ]);

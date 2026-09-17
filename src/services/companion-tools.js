@@ -1,21 +1,31 @@
 /**
- * Maya classifies the turn by which tool she calls (or none).
- * text: no media tool
- * image sent / refused: send_photo / refuse_photo
- * audio sent / refused: send_voice_note / refuse_voice_note
+ * Maya reads the latest user message and classifies the turn with a tool.
+ * The backend does not regex their wording to pick the tool.
  */
 
-import { userAskedForPhoto } from "./companion-photo.service.js";
-import { userAskedForVoice } from "./companion-voice.service.js";
-
 export const COMPANION_TOOLS = [
+    {
+        type: "function",
+        function: {
+            name: "text",
+            strict: true,
+            description:
+                "Only text is needed this turn. Call this for ordinary chat and for a compliment on a photo already sent. Do not call this if they asked for a photo or a voice note.",
+            parameters: {
+                type: "object",
+                properties: {},
+                required: [],
+                additionalProperties: false,
+            },
+        },
+    },
     {
         type: "function",
         function: {
             name: "send_photo",
             strict: true,
             description:
-                "Image needed and you are sending it. Attach one photo. Describe what it shows. Do not call this if you are refusing or if only text is needed.",
+                "They want a picture, in any wording: a pic, selfie, show me, I wanna see, send it, etc. You are sending it. Describe what it shows.",
             parameters: {
                 type: "object",
                 properties: {
@@ -35,7 +45,7 @@ export const COMPANION_TOOLS = [
             name: "refuse_photo",
             strict: true,
             description:
-                "Image needed but you are not sending it. Call this when they asked for a picture and you are refusing. Do not call this for ordinary chat or a compliment on a photo already sent.",
+                "Rare. Only if the ask is explicitly sexual or actually unsafe. Do not refuse because the chat is new, they are a stranger, you already said no, or they asked again.",
             parameters: {
                 type: "object",
                 properties: {
@@ -55,7 +65,7 @@ export const COMPANION_TOOLS = [
             name: "send_voice_note",
             strict: true,
             description:
-                "Audio needed and you are sending it. Attach a voice note. Do not call this if you are refusing or if only text is needed.",
+                "They want to hear you, in any wording: voice note, audio, record something, say it out loud. Attach a voice note. Never answer that with a photo.",
             parameters: {
                 type: "object",
                 properties: {
@@ -103,11 +113,13 @@ function parseArgs(raw) {
 }
 
 export function intentsFromToolCalls(toolCalls = []) {
+    let text = false;
     let photo = null;
     let voice = null;
     for (const call of toolCalls) {
         const name = call?.function?.name || call?.name;
         const args = parseArgs(call?.function?.arguments ?? call?.arguments);
+        if (name === "text") text = true;
         if (name === "send_photo") {
             const what = String(args.what || args.query || args.scene || "").trim();
             if (what) photo = { action: "send", query: what };
@@ -127,27 +139,21 @@ export function intentsFromToolCalls(toolCalls = []) {
             voice = { action: "refuse", reason };
         }
     }
-    return { photo, voice };
+    if (photo || voice) text = false;
+    return { text, photo, voice };
 }
 
-const PHOTO_TOOLS = COMPANION_TOOLS.filter((tool) =>
-    ["send_photo", "refuse_photo"].includes(tool.function.name),
-);
-const VOICE_TOOLS = COMPANION_TOOLS.filter((tool) =>
-    ["send_voice_note", "refuse_voice_note"].includes(tool.function.name),
-);
+export function modelSupportsTools(model = "") {
+    return !/mythomax/i.test(String(model || ""));
+}
 
-export function toolsForCompanionTurn(userText = "") {
-    const photoNeeded = userAskedForPhoto(userText);
-    const voiceNeeded = userAskedForVoice(userText);
-    if (photoNeeded && voiceNeeded) {
-        return { tools: COMPANION_TOOLS, toolChoice: "required", photoNeeded: true, voiceNeeded: true };
+export function toolsForCompanionTurn(_userText = "", { model, priorPhotoRefusals = 0 } = {}) {
+    if (!modelSupportsTools(model)) {
+        return { tools: undefined, toolChoice: undefined, forceSend: false };
     }
-    if (photoNeeded) {
-        return { tools: PHOTO_TOOLS, toolChoice: "required", photoNeeded: true, voiceNeeded: false };
-    }
-    if (voiceNeeded) {
-        return { tools: VOICE_TOOLS, toolChoice: "required", photoNeeded: false, voiceNeeded: true };
-    }
-    return { tools: undefined, toolChoice: undefined, photoNeeded: false, voiceNeeded: false };
+    return {
+        tools: COMPANION_TOOLS,
+        toolChoice: "required",
+        forceSend: priorPhotoRefusals > 0,
+    };
 }

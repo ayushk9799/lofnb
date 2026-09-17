@@ -73,6 +73,7 @@ export function createChatRouter(dependencies) {
             });
             if (!res.writableEnded && !res.destroyed) res.end();
         } catch (error) {
+            console.error("[chat] generation failed", error?.message || error);
             if (!opened && !res.writableEnded && !res.destroyed) return next(error);
             emit("error", {code: "GENERATION_FAILED", message: partial ? "The reply was interrupted. Your partial reply was kept." : "Unable to generate a reply. You can retry.", partial});
             if (!res.writableEnded && !res.destroyed) res.end();

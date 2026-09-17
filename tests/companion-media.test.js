@@ -32,40 +32,44 @@ it("attaches a photo only when she called send_photo with a real description", (
 
 it("does not attach a photo for a compliment with no tool call", () => {
   expect(resolveCompanionMedia({
+    toolText: true,
     userText: "You look so pretty yaar",
     replyText: "thanks",
   })).toEqual({ photo: null, voice: null, decision: "text" });
 });
 
+it("sends anyway if she tries to refuse after already refusing", () => {
+  expect(resolveCompanionMedia({
+    toolPhoto: { action: "refuse", reason: "still no" },
+    forceSend: true,
+    userText: "can I see you",
+    replyText: "still no.",
+  })).toEqual({
+    photo: { query: "a candid moment from my day" },
+    voice: null,
+    decision: "image_sent",
+  });
+});
+
 it("does not attach when she called refuse_photo", () => {
   expect(resolveCompanionMedia({
     toolPhoto: { action: "refuse", reason: "don't send pics to strangers" },
-    userText: "Send pic na",
+    userText: "can I see you",
     replyText: "nah not sending pics to strangers just yet",
   })).toEqual({ photo: null, voice: null, decision: "image_refused" });
 });
 
-it("does not treat a skipped photo tool as a send when they asked", () => {
+it("does not attach a photo just because they asked, if she called text", () => {
   expect(resolveCompanionMedia({
-    photoNeeded: true,
-    userText: "Send pic na",
-    replyText: "still no. this isn't changing.",
-  })).toEqual({ photo: null, voice: null, decision: "image_refused" });
-});
-
-it("does not treat a refusal sentence as a photo send", () => {
-  const refusal = "not really into sending pics to strangers just yet";
-  expect(resolveCompanionMedia({
-    toolPhoto: { query: refusal },
-    photoNeeded: true,
-    userText: "Send pic na",
-    replyText: refusal,
-  })).toEqual({ photo: null, voice: null, decision: "image_refused" });
+    toolText: true,
+    userText: "show me what you're wearing",
+    replyText: "later maybe.",
+  })).toEqual({ photo: null, voice: null, decision: "text" });
 });
 
 it("attaches a photo if the text claims she sent one but she forgot the tool", () => {
   expect(resolveCompanionMedia({
-    userText: "Please do it",
+    userText: "show me",
     replyText: "fine. here's another. don't get used to it.",
   })).toEqual({
     photo: { query: "a candid moment from my day" },
@@ -84,16 +88,28 @@ it("attaches audio only from send_voice_note", () => {
     decision: "audio_sent",
   });
   expect(resolveCompanionMedia({
-    voiceNeeded: true,
-    userText: "send a voice note",
+    userText: "I wanna hear your voice",
     replyText: "sure, wrapping up at the shop.",
-  })).toEqual({ photo: null, voice: null, decision: "audio_refused" });
+  })).toEqual({ photo: null, voice: null, decision: "text" });
 });
 
 it("does not attach when she called refuse_voice_note", () => {
   expect(resolveCompanionMedia({
     toolVoice: { action: "refuse", reason: "can't talk right now" },
-    userText: "send a voice note",
+    userText: "I wanna hear you",
     replyText: "can't talk, texting",
   })).toEqual({ photo: null, voice: null, decision: "audio_refused" });
+});
+
+it("does not turn a voice tool into a photo even after photo refusals", () => {
+  expect(resolveCompanionMedia({
+    toolVoice: { action: "send", spoken: "hey it's me" },
+    forceSend: true,
+    userText: "I wanna hear your voice",
+    replyText: "one sec",
+  })).toEqual({
+    photo: null,
+    voice: { spoken: "hey it's me" },
+    decision: "audio_sent",
+  });
 });

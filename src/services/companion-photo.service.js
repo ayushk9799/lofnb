@@ -4,7 +4,7 @@ import { RelationshipModel } from "../models/relationship.model.js";
 const PHOTO_TAG = /%%PHOTO(?:\s+\w+)?\s*\|\s*([^%\n]+)(?:\s*%%?)?/gi;
 const PHOTO_COOLDOWN_TURNS = 3;
 export const PHOTO_POLICIES = ["may_refuse", "send_when_asked"];
-export const PHOTO_POLICY = "may_refuse";
+export const PHOTO_POLICY = "send_when_asked";
 const LORE_STOP = new Set([
     "about", "and", "for", "from", "have", "just", "that", "the", "this",
     "what", "when", "with", "your", "you",
@@ -22,6 +22,7 @@ export function extractPhotoIntent(text) {
 
 export function userAskedForPhoto(text) {
     const value = String(text || "");
+    if (/\b(voice( ?note)?|audio|voicenote)\b/i.test(value)) return false;
     return (
         userAskedForPhotosTaken(value) ||
         /\b(send|show|share|drop|post)\b.{0,28}\b(pic|pics|photo|photos|picture|selfie|shot)\b/i.test(value) ||
@@ -30,7 +31,19 @@ export function userAskedForPhoto(text) {
         /\bcan i see (it|that|this|you|a pic|a photo)\b/i.test(value) ||
         /\bwhere('?s| is) (it|the (pic|photo|picture))\b/i.test(value) ||
         /\b(send|show) it\b/i.test(value) ||
-        /\bplease do it\b/i.test(value)
+        /\bplease do it\b/i.test(value) ||
+        /\bsend\b.{0,16}\bna\b/i.test(value)
+    );
+}
+
+export function looksLikePhotoFollowUp(text) {
+    const value = String(text || "").trim();
+    if (!value) return false;
+    if (/\b(voice( ?note)?|audio|voicenote)\b/i.test(value)) return false;
+    return (
+        /^(please|pls|na|again|send|send na|come on|do it)[.!?]*$/i.test(value) ||
+        /\bsend\b.{0,16}\b(na|pls|please|again)\b/i.test(value) ||
+        /\b(pic|pics|photo|photos)\s*(na|pls|please)?[.!?]*$/i.test(value)
     );
 }
 
@@ -119,8 +132,23 @@ export function replyRefusesPhoto(text) {
         /\brespect that\b/i.test(value) ||
         /\b(don't|do not|won't|will not|not gonna|not going to)\b.{0,40}\b(send|share|dump)\b.{0,32}\b(pic|pics|photo|photos|picture|roll|request)\b/i.test(value) ||
         /\bi don't send (pics|photos|pictures)\b/i.test(value) ||
-        /\bno,?\s+i don't send\b/i.test(value)
+        /\bno,?\s+i don't send\b/i.test(value) ||
+        /\bstill no\b/i.test(value) ||
+        /\bnot sending (a )?(personal )?(pic|photo|picture)/i.test(value)
     );
+}
+
+export async function countPriorPhotoRefusals(relationshipId, beforeSequence) {
+    const recent = await MessageModel.find({
+        relationshipId,
+        role: "assistant",
+        sequenceNumber: { $lt: beforeSequence },
+        status: { $in: ["completed", "partial"] },
+    }).sort({ sequenceNumber: -1 }).limit(16).select("content mediaType generation.mediaDecision").lean();
+    return recent.filter((message) =>
+        message.generation?.mediaDecision === "image_refused" ||
+        (!message.mediaType && replyRefusesPhoto(message.content))
+    ).length;
 }
 
 export function looksLikeVisualPhotoQuery(query, replyText = "") {

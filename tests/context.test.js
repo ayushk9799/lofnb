@@ -109,13 +109,12 @@ it("requires direct short replies without profile performance", () => {
   expect(prompt).toContain("one text bubble of 3–35 words");
   expect(prompt).toContain("Do not perform your profile");
   expect(prompt).toContain("Asking their name is optional");
+  expect(prompt).toContain("Any wording counts");
   expect(prompt).toContain("send_photo");
   expect(prompt).toContain("refuse_photo");
   expect(prompt).toContain("send_voice_note");
   expect(prompt).toContain("refuse_voice_note");
-  expect(prompt).toContain("Every reply is exactly one of");
-  expect(prompt).toContain("you must call send_photo or refuse_photo");
-  expect(prompt).toContain("A compliment on a photo you already sent is text only");
+  expect(prompt).toContain("ordinary chat or a compliment");
   expect(prompt).not.toContain("STRICTLY BAN");
   expect(prompt).not.toContain("DEFLECTION & DODGE AWARENESS");
 });

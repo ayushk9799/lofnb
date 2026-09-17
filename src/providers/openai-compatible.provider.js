@@ -35,7 +35,10 @@ function extractJson(value) {
   return JSON.parse(withoutFence.slice(start, end + 1));
 }
 function isReasoningModel(model = "") {
-  return /^(?:gpt-5|o1|o3|o4)/i.test(model);
+  return /(?:^|\/)(?:gpt-5|o1|o3|o4)/i.test(model);
+}
+function reasoningOff() {
+  return { verbosity: "low", reasoning: { effort: "none" } };
 }
 export class OpenAiCompatibleProvider {
   name = "openai-compatible";
@@ -60,9 +63,9 @@ export class OpenAiCompatibleProvider {
         ...(Array.isArray(tools) && tools.length
           ? { tools, tool_choice: toolChoice || "auto", parallel_tool_calls: false }
           : {}),
-        ...(isOpenRouter ? { include_reasoning: false } : {}),
+        ...(isOpenRouter && !reasoning ? { include_reasoning: false } : {}),
         ...(reasoning
-          ? { verbosity: "low" }
+          ? reasoningOff()
           : {
               temperature: 0.7,
               presence_penalty: 0,
@@ -146,7 +149,7 @@ export class OpenAiCompatibleProvider {
         messages,
         stream: false,
         response_format: { type: "json_object" },
-        ...(reasoning ? {} : { temperature: 0 }),
+        ...(reasoning ? reasoningOff() : { temperature: 0 }),
       }),
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(60_000)])
@@ -167,7 +170,7 @@ export class OpenAiCompatibleProvider {
         model: this.model,
         messages,
         stream: false,
-        ...(reasoning ? {} : { temperature }),
+        ...(reasoning ? reasoningOff() : { temperature }),
       }),
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(60_000)])
