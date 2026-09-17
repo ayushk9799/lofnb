@@ -89,6 +89,46 @@ describe("User Profile Endpoints", () => {
         }
     });
 
+    it("sets onboardedAt once when completeOnboarding is true", async () => {
+        const server = app.listen(0);
+        const port = server.address().port;
+        try {
+            const first = await fetch(`http://localhost:${port}/api/profile`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-user-id": "user-onboard-1",
+                },
+                body: JSON.stringify({
+                    name: "Sam",
+                    vibe: "Warm",
+                    completeOnboarding: true,
+                }),
+            });
+            expect(first.status).toBe(200);
+            const firstBody = await first.json();
+            expect(firstBody.data.name).toBe("Sam");
+            expect(firstBody.data.vibe).toBe("Warm");
+            expect(firstBody.data.onboardedAt).toBeTruthy();
+
+            const firstStamp = new Date(firstBody.data.onboardedAt).getTime();
+            await new Promise((resolve) => setTimeout(resolve, 20));
+
+            const second = await fetch(`http://localhost:${port}/api/profile`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-user-id": "user-onboard-1",
+                },
+                body: JSON.stringify({ completeOnboarding: true }),
+            });
+            const secondBody = await second.json();
+            expect(new Date(secondBody.data.onboardedAt).getTime()).toBe(firstStamp);
+        } finally {
+            server.close();
+        }
+    });
+
     it("rejects invalid age ranges with 400 validation error", async () => {
         const server = app.listen(0);
         const port = server.address().port;

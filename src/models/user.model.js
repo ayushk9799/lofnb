@@ -17,6 +17,7 @@ const userSchema = new Schema({
         enum: ["Everyone", "Creative", "Playful", "Warm", "Curious", "Adventurous"],
         default: "Everyone",
     },
+    age: { type: Number, min: 18, max: 120 },
     minAge: { type: Number, default: 18, min: 18, max: 100 },
     maxAge: { type: Number, default: 60, min: 18, max: 100 },
     timezone: { type: String, maxlength: 100, default: "" },
@@ -29,6 +30,7 @@ const userSchema = new Schema({
     revenueCatAppUserId: { type: String, index: true },
     revenueCatEventAt: { type: Date },
     lastDailyHeartsClaimedAt: { type: Date, default: null },
+    onboardedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 export const UserModel = model("User", userSchema);

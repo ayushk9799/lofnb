@@ -63,10 +63,22 @@ describe("Google & Apple Auth Endpoints", () => {
             expect(body.data.user.email).toBe("12345@gmail.com");
             expect(body.data.user.accountId).toBeTypeOf("string");
             expect(body.data.user.revenueCatAppUserId).toBe(body.data.user.accountId);
+            expect(body.data.isNewUser).toBe(true);
+            expect(body.data.user.onboardedAt).toBeFalsy();
 
             const saved = await UserModel.findOne({ userId: "google_12345" });
             expect(saved).not.toBeNull();
             expect(saved.authProvider).toBe("google");
+            expect(saved.onboardedAt).toBeFalsy();
+
+            const again = await fetch(`http://localhost:${port}/api/auth/google`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token: "mock_google_12345" }),
+            });
+            const againBody = await again.json();
+            expect(again.status).toBe(200);
+            expect(againBody.data.isNewUser).toBe(false);
         } finally {
             server.close();
         }
@@ -93,6 +105,7 @@ describe("Google & Apple Auth Endpoints", () => {
             expect(body.data.user.email).toBe("apple.tester@privaterelay.appleid.com");
             expect(body.data.user.accountId).toBeTypeOf("string");
             expect(body.data.user.revenueCatAppUserId).toBe(body.data.user.accountId);
+            expect(body.data.isNewUser).toBe(true);
 
             const saved = await UserModel.findOne({ userId: "apple_98765" });
             expect(saved).not.toBeNull();

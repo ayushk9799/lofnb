@@ -12,12 +12,14 @@ import { upload } from "../middleware/upload.js";
 
 const updateProfileSchema = z.object({
     name: z.string().max(80).optional(),
+    age: z.coerce.number().int().min(18).max(120).optional(),
     bio: z.string().max(500).optional(),
     avatarUrl: z.string().max(2048).optional(),
     vibe: z.enum(["Everyone", "Creative", "Playful", "Warm", "Curious", "Adventurous"]).optional(),
     minAge: z.coerce.number().int().min(18).max(100).optional(),
     maxAge: z.coerce.number().int().min(18).max(100).optional(),
     timezone: z.string().max(100).optional(),
+    completeOnboarding: z.boolean().optional(),
 }).refine(data => {
     if (data.minAge !== undefined && data.maxAge !== undefined) {
         return data.minAge <= data.maxAge;
@@ -43,12 +45,14 @@ profileRouter.get("/", async (request, response) => {
         profile = {
             userId: request.auth.userId,
             name: "",
+            age: null,
             bio: "",
             avatarUrl: "",
             vibe: "Everyone",
             minAge: 18,
             maxAge: 60,
             timezone: "",
+            onboardedAt: null,
         };
     }
     response.json({ data: profile });
@@ -56,6 +60,7 @@ profileRouter.get("/", async (request, response) => {
 
 async function handleUpdate(request, response) {
     const body = updateProfileSchema.parse(request.body);
+    const { completeOnboarding, ...profileFields } = body;
     const existing = await UserModel.findOne({ userId: request.auth.userId });
     const minAge = body.minAge ?? existing?.minAge ?? 18;
     const maxAge = body.maxAge ?? existing?.maxAge ?? 60;
@@ -63,14 +68,17 @@ async function handleUpdate(request, response) {
         throw new HttpError(400, "minAge cannot exceed maxAge", "VALIDATION_ERROR");
     }
 
+    const $set = {
+        ...profileFields,
+        userId: request.auth.userId,
+    };
+    if (completeOnboarding && !existing?.onboardedAt) {
+        $set.onboardedAt = new Date();
+    }
+
     const profile = await UserModel.findOneAndUpdate(
         { userId: request.auth.userId },
-        {
-            $set: {
-                ...body,
-                userId: request.auth.userId,
-            },
-        },
+        { $set },
         { new: true, upsert: true, setDefaultsOnInsert: true }
     ).lean();
     response.json({ data: profile });

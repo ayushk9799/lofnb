@@ -53,6 +53,23 @@ const appleAuthSchema = z.object({
     preferredLanguage: z.string().optional(),
 });
 
+function sessionResponse(user, { isNewUser }) {
+    const userData = user.toObject();
+    const sessionToken = createSessionToken({ userId: user.userId, email: user.email });
+    return {
+        success: true,
+        data: {
+            user: userData,
+            token: sessionToken,
+            userId: user.userId,
+            isNewUser: Boolean(isNewUser),
+        },
+        user: userData,
+        token: sessionToken,
+        isNewUser: Boolean(isNewUser),
+    };
+}
+
 async function handleGoogleAuth(request, response) {
     const body = googleAuthSchema.parse(request.body);
     const token = body.token || body.idToken;
@@ -60,8 +77,10 @@ async function handleGoogleAuth(request, response) {
 
     const userId = `google_${verified.sub}`;
     let user = await UserModel.findOne({ userId });
+    let isNewUser = false;
 
     if (!user) {
+        isNewUser = true;
         user = await UserModel.create({
             userId,
             ...newAccountIdentity(),
@@ -84,21 +103,7 @@ async function handleGoogleAuth(request, response) {
     }
 
     await ensureAccountIdentity(user);
-
-    const sessionToken = createSessionToken({ userId, email: user.email });
-    const userData = user.toObject();
-
-    response.json({
-        success: true,
-        data: {
-            user: userData,
-            token: sessionToken,
-            userId,
-        },
-        // Backwards compatibility with igfrontend contract
-        user: userData,
-        token: sessionToken,
-    });
+    response.json(sessionResponse(user, { isNewUser }));
 }
 
 async function handleAppleAuth(request, response) {
@@ -107,8 +112,10 @@ async function handleAppleAuth(request, response) {
 
     const userId = `apple_${verified.sub}`;
     let user = await UserModel.findOne({ userId });
+    let isNewUser = false;
 
     if (!user) {
+        isNewUser = true;
         user = await UserModel.create({
             userId,
             ...newAccountIdentity(),
@@ -129,21 +136,7 @@ async function handleAppleAuth(request, response) {
     }
 
     await ensureAccountIdentity(user);
-
-    const sessionToken = createSessionToken({ userId, email: user.email });
-    const userData = user.toObject();
-
-    response.json({
-        success: true,
-        data: {
-            user: userData,
-            token: sessionToken,
-            userId,
-        },
-        // Backwards compatibility with igfrontend contract
-        user: userData,
-        token: sessionToken,
-    });
+    response.json(sessionResponse(user, { isNewUser }));
 }
 
 authRouter.post("/google", handleGoogleAuth);

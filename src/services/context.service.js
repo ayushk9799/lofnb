@@ -206,6 +206,7 @@ export function buildCharacterPrompt(
         userProfile.name
           ? `- User profile name: ${JSON.stringify(userProfile.name)}`
           : "",
+        userProfile.age ? `- User age: ${userProfile.age}` : "",
         userProfile.bio ? `- User bio: ${JSON.stringify(userProfile.bio)}` : "",
       ].filter(Boolean)
     : [];
