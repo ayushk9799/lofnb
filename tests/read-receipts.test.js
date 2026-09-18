@@ -26,7 +26,7 @@ const llm = {
     model: "fake",
     async *streamChat() { yield "hi"; },
     async generateText({ messages }) {
-        const sys = messages.find(m => m.role === "system")?.content || "";
+        const sys = messages.filter(m => m.role === "system").map(m => m.content).join("\n");
         if (sys.includes("Left-On-Read")) return "Left me on read? 😂";
         return "hey";
     },
@@ -161,36 +161,32 @@ it("proactive worker triggers left_on_read when user read the last assistant mes
     });
     await RelationshipModel.findByIdAndUpdate(relationship._id, {
         userLastReadSequence: 1,
+        userLastReadAt: new Date(Date.now() - 70_000),
         nextSequence: 2,
-        lastMessageAt: new Date(Date.now() - 4 * 3600 * 1000), // 4 hours ago
+        lastMessageAt: new Date(Date.now() - 3 * 60 * 1000),
     });
-
-    // Mock daytime hour
-    const realDateTimeFormat = Intl.DateTimeFormat;
-    vi.spyOn(Intl, "DateTimeFormat").mockImplementation((locale, options) => {
-        if (options?.hour) {
-            return {
-                format: () => "14",
-            };
-        }
-        return new realDateTimeFormat(locale, options);
-    });
+    await MessageModel.updateOne(
+        { relationshipId: relationship._id, sequenceNumber: 1 },
+        { $set: { createdAt: new Date(Date.now() - 3 * 60 * 1000) } },
+    );
 
     let capturedPrompt = "";
     const testLlm = {
         name: "fake",
         model: "fake",
         async generateText({ messages }) {
-            capturedPrompt = messages.find(m => m.role === "system")?.content || "";
+            capturedPrompt = messages.filter(m => m.role === "system").map(m => m.content).join("\n");
             return "Left me on read? 😂";
         },
     };
 
     await processProactiveCheckIns({
         llm: testLlm,
-        offlineThresholdMs: 3600 * 1000,
-        cooldownMs: 3600 * 1000,
     });
 
     expect(capturedPrompt).toContain("Left-On-Read Directive");
+    expect(capturedPrompt).toContain("hello??");
+    expect(capturedPrompt).toContain("am i not enough");
+    expect(capturedPrompt).toContain("Write a new sentence");
+    expect(capturedPrompt).not.toContain("## Media");
 });

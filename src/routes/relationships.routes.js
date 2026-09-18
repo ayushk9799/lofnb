@@ -4,8 +4,11 @@ import { CharacterModel } from "../models/character.model.js";
 import { MemoryJobModel } from "../models/memory-job.model.js";
 import { MessageModel } from "../models/message.model.js";
 import { RelationshipModel } from "../models/relationship.model.js";
+import { UserModel } from "../models/user.model.js";
 import { requireObjectId } from "../middleware/error-handler.js";
 import { requireOwnedRelationship } from "../services/relationship.service.js";
+import { unlockCompanionPhoto } from "../services/companion-photo.service.js";
+import { CurrencyService } from "../services/currency.service.js";
 import { HttpError } from "../utils/http-error.js";
 const createRelationship = z.object({
     characterId: z.string().min(1),
@@ -122,3 +125,37 @@ relationshipsRouter.get("/:relationshipId/memory-status", async (request, respon
     ]);
     response.json({data: {pending: jobs + unscheduled, failed}});
 });
+
+function revenueCatCustomerId(user, fallbackUserId) {
+    return user?.revenueCatAppUserId || user?.accountId || fallbackUserId;
+}
+
+export function createRelationshipsRouter({ env } = {}) {
+    const router = Router();
+    const currencyService = new CurrencyService(env);
+    router.use(relationshipsRouter);
+    router.post("/:relationshipId/messages/:messageId/unlock", async (request, response) => {
+        const relationshipId = requireObjectId(request.params.relationshipId, "relationshipId");
+        const messageId = requireObjectId(request.params.messageId, "messageId");
+        const userId = request.auth?.userId;
+        if (!userId) throw new HttpError(401, "Authentication required", "UNAUTHORIZED");
+        const user = await UserModel.findOne({ userId }).lean();
+        if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+        const result = await unlockCompanionPhoto({
+            relationshipId,
+            messageId,
+            userId,
+            currencyService,
+            customerId: revenueCatCustomerId(user, userId),
+        });
+        const payload = {
+            success: true,
+            spent: result.spent,
+            remainingGems: result.remainingGems,
+            alreadyUnlocked: result.alreadyUnlocked,
+            mediaMeta: result.mediaMeta,
+        };
+        response.json({ ...payload, data: payload });
+    });
+    return router;
+}

@@ -20,6 +20,11 @@ const optionalPositiveInt = (max) => z.preprocess((value) => {
 const chatBody = z.object({
     content: z.string().trim().max(20_000).default(""),
     clientMessageId: z.string().min(8).max(160),
+    clientGems: z.preprocess((value) => {
+        if (value == null || value === "") return 0;
+        const n = Math.round(Number(value));
+        return Number.isFinite(n) && n >= 0 ? n : 0;
+    }, z.number().int().min(0).default(0)),
     timezone: z.string().max(100).optional(),
     mediaUrl: z.string().max(2048).optional(),
     mediaKey: z.string().max(500).optional(),

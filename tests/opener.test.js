@@ -19,7 +19,7 @@ const llm = {
     model: "fake",
     async *streamChat() { yield "hello"; },
     async generateText({ messages }) {
-        const system = messages[0]?.content || "";
+        const system = messages.filter(m => m.role === "system").map(m => m.content).join("\n");
         expect(system).toContain("Opener Directive");
         expect(messages.some(m => m.role === "user")).toBe(false);
         return "hey";

@@ -59,6 +59,26 @@ it("does not attach when she called refuse_photo", () => {
   })).toEqual({ photo: null, voice: null, decision: "image_refused" });
 });
 
+it("does not attach a photo when the user cannot afford one", () => {
+  expect(resolveCompanionMedia({
+    toolPhoto: { action: "send", query: "stoop at dusk" },
+    replyText: "this one's from last week.",
+    canSendPhoto: false,
+  })).toEqual({ photo: null, voice: null, decision: "image_refused" });
+  expect(resolveCompanionMedia({
+    toolPhoto: { action: "refuse", reason: "still no" },
+    forceSend: true,
+    userText: "can I see you",
+    replyText: "still no.",
+    canSendPhoto: false,
+  })).toEqual({ photo: null, voice: null, decision: "image_refused" });
+  expect(resolveCompanionMedia({
+    userText: "show me",
+    replyText: "fine. here's another. don't get used to it.",
+    canSendPhoto: false,
+  })).toEqual({ photo: null, voice: null, decision: "image_refused" });
+});
+
 it("does not attach a photo just because they asked, if she called text", () => {
   expect(resolveCompanionMedia({
     toolText: true,

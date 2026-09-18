@@ -11,7 +11,7 @@ import { createChatRouter } from "./routes/chat.routes.js";
 import { mediaRouter } from "./routes/media.routes.js";
 import { memoriesRouter } from "./routes/memories.routes.js";
 import { profileRouter } from "./routes/profile.routes.js";
-import { relationshipsRouter } from "./routes/relationships.routes.js";
+import { createRelationshipsRouter } from "./routes/relationships.routes.js";
 import { swipesRouter } from "./routes/swipes.routes.js";
 import { storageRouter, uploadRouter } from "./routes/upload.routes.js";
 import { createWebhookRouter } from "./routes/webhook.routes.js";
@@ -50,7 +50,7 @@ export function createApp({ env, llm, visionLlm, embeddingProvider, mediaProvide
     app.use("/api/discovery", discoveryRouter);
     app.use("/api/swipes", swipesRouter);
     app.use("/api/characters", charactersRouter);
-    app.use("/api/relationships", relationshipsRouter);
+    app.use("/api/relationships", createRelationshipsRouter({ env }));
     app.use("/api/relationships/:relationshipId/media", mediaRouter);
     app.use("/api/relationships/:relationshipId/chat", createChatRouter({ env, llm, visionLlm, embeddingProvider, mediaProvider, storage }));
     app.use("/api/relationships/:relationshipId/memories", memoriesRouter);

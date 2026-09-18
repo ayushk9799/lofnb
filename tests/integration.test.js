@@ -72,15 +72,16 @@ const llm = {
   },
 };
 function reply(overrides = {}) {
+  const { body, ...rest } = overrides;
   return generateReply({
     relationshipId: relationship._id,
     userId: "alice",
-    body: { content: "hello", clientMessageId: "request-001" },
     env,
     llm,
     signal: new AbortController().signal,
     emit: () => {},
-    ...overrides,
+    ...rest,
+    body: { content: "hello", clientMessageId: "request-001", clientGems: 99, ...body },
   });
 }
 async function source() {
@@ -230,6 +231,40 @@ it("attaches a generated photo when the model tags a scene, and strips the tag",
   expect(generateImage).toHaveBeenCalledOnce();
   expect(upload).toHaveBeenCalledOnce();
 });
+it("skips image generation in development and still locks a camera-roll photo", async () => {
+  const generateImage = vi.fn();
+  await reply({
+    env: { ...env, NODE_ENV: "development" },
+    body: {
+      content: "send a pic of the stoop",
+      clientMessageId: "dev-skip-gen",
+      clientGems: 99,
+    },
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "here.";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "send_photo",
+              arguments: JSON.stringify({ what: "stoop at dusk with no matching caption" }),
+            },
+          }],
+        };
+      },
+    },
+    mediaProvider: { generateImage },
+    storage: { upload: vi.fn() },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(generateImage).not.toHaveBeenCalled();
+  expect(assistant.mediaType).toBe("image");
+  expect(assistant.mediaUrl).toBe("https://example.com/photo.png");
+  expect(assistant.mediaMeta.locked).toBe(true);
+  expect(assistant.mediaMeta.unlockCost).toBe(99);
+  expect(assistant.mediaMeta.source).toBe("generated");
+});
 it("reuses a gallery photo instead of generating when the description matches a caption", async () => {
   const generateImage = vi.fn();
   await reply({
@@ -255,6 +290,73 @@ it("reuses a gallery photo instead of generating when the description matches a 
   expect(assistant.mediaType).toBe("image");
   expect(assistant.mediaUrl).toBe("https://example.com/photo.png");
   expect(assistant.mediaMeta.source).toBe("gallery");
+  expect(assistant.mediaMeta.locked).toBe(true);
+  expect(assistant.mediaMeta.unlockCost).toBe(99);
+  expect(generateImage).not.toHaveBeenCalled();
+});
+it("does not generate a photo when the client has fewer than 99 hearts", async () => {
+  const generateImage = vi.fn();
+  const upload = vi.fn();
+  await reply({
+    body: { content: "send a pic", clientMessageId: "broke-photo", clientGems: 98 },
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "this one's from last week.";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "send_photo",
+              arguments: JSON.stringify({ what: "stoop at dusk" }),
+            },
+          }],
+        };
+      },
+    },
+    mediaProvider: { generateImage },
+    storage: { upload },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.mediaType).toBeUndefined();
+  expect(assistant.mediaUrl).toBeUndefined();
+  expect(assistant.generation.mediaDecision).toBe("image_refused");
+  expect(assistant.generation.mediaRefuseReason).toBe("insufficient_gems");
+  expect(generateImage).not.toHaveBeenCalled();
+  expect(upload).not.toHaveBeenCalled();
+});
+it("does not force-send a photo after refusals when hearts are below 99", async () => {
+  await MessageModel.create({
+    relationshipId: relationship._id,
+    sequenceNumber: await (await import("../src/services/sequence.service.js")).allocateMessageSequence(relationship._id, "alice"),
+    role: "assistant",
+    content: "nah not sending one.",
+    status: "completed",
+    generation: { mediaDecision: "image_refused" },
+    completedAt: new Date(),
+  });
+  const generateImage = vi.fn();
+  await reply({
+    body: { content: "please send it", clientMessageId: "still-broke", clientGems: 0 },
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "still no.";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "refuse_photo",
+              arguments: JSON.stringify({ reason: "still no" }),
+            },
+          }],
+        };
+      },
+    },
+    mediaProvider: { generateImage },
+    storage: { upload: vi.fn() },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).sort({ sequenceNumber: -1 }).lean();
+  expect(assistant.generation.mediaDecision).toBe("image_refused");
+  expect(assistant.mediaUrl).toBeFalsy();
   expect(generateImage).not.toHaveBeenCalled();
 });
 it("attaches a photo from a send_photo tool call instead of markup", async () => {

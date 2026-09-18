@@ -28,6 +28,7 @@ export function resolveCompanionMedia({
     userText = "",
     replyText = "",
     forceSend = false,
+    canSendPhoto = true,
 } = {}) {
     const spoken = String(toolVoice?.spoken || "").trim();
     if (spoken) {
@@ -41,24 +42,29 @@ export function resolveCompanionMedia({
     }
     const toolQuery = String(toolPhoto?.query || "").trim();
     if (looksLikeVisualPhotoQuery(toolQuery, replyText)) {
-        return { photo: { query: toolQuery }, voice: null, decision: "image_sent" };
+        return gatePhoto({ photo: { query: toolQuery }, voice: null, decision: "image_sent" }, canSendPhoto);
     }
     if (toolPhoto?.action === "refuse" && forceSend) {
-        return {
+        return gatePhoto({
             photo: { query: photoQueryFromAsk(userText, toolQuery) },
             voice: null,
             decision: "image_sent",
-        };
+        }, canSendPhoto);
     }
     if (replyClaimsPhoto(replyText)) {
-        return {
+        return gatePhoto({
             photo: { query: photoQueryFromAsk(userText, toolQuery) },
             voice: null,
             decision: "image_sent",
-        };
+        }, canSendPhoto);
     }
     if (toolText) {
         return { photo: null, voice: null, decision: "text" };
     }
     return { photo: null, voice: null, decision: "text" };
+}
+
+function gatePhoto(resolved, canSendPhoto) {
+    if (canSendPhoto) return resolved;
+    return { photo: null, voice: null, decision: "image_refused" };
 }

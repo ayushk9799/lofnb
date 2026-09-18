@@ -112,3 +112,17 @@ it("only overrides a later photo refuse, and still offers every tool", () => {
     "refuse_voice_note",
   ]);
 });
+
+it("drops send_photo and forceSend when the user cannot afford a photo", () => {
+  const turn = toolsForCompanionTurn("can I see you", {
+    priorPhotoRefusals: 2,
+    canSendPhoto: false,
+  });
+  expect(turn.forceSend).toBe(false);
+  expect(turn.tools.map((tool) => tool.function.name)).toEqual([
+    "text",
+    "refuse_photo",
+    "send_voice_note",
+    "refuse_voice_note",
+  ]);
+});

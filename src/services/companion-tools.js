@@ -147,13 +147,20 @@ export function modelSupportsTools(model = "") {
     return !/mythomax/i.test(String(model || ""));
 }
 
-export function toolsForCompanionTurn(_userText = "", { model, priorPhotoRefusals = 0 } = {}) {
+export function toolsForCompanionTurn(_userText = "", {
+    model,
+    priorPhotoRefusals = 0,
+    canSendPhoto = true,
+} = {}) {
     if (!modelSupportsTools(model)) {
         return { tools: undefined, toolChoice: undefined, forceSend: false };
     }
+    const tools = canSendPhoto
+        ? COMPANION_TOOLS
+        : COMPANION_TOOLS.filter((tool) => tool.function.name !== "send_photo");
     return {
-        tools: COMPANION_TOOLS,
+        tools,
         toolChoice: "required",
-        forceSend: priorPhotoRefusals > 0,
+        forceSend: canSendPhoto && priorPhotoRefusals > 0,
     };
 }

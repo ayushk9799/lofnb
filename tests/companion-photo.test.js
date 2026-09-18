@@ -1,11 +1,13 @@
 import { expect, it } from "vitest";
 import {
   buildCompanionImagePrompt,
+  canAffordPhoto,
   collectCameraRoll,
   decideCompanionPhoto,
   extractPhotoIntent,
   looksLikePhotoFollowUp,
   matchGalleryPhoto,
+  PHOTO_UNLOCK_COST,
   pickCameraRollPhoto,
   replyRefusesPhoto,
   userAskedForPhoto,
@@ -83,4 +85,12 @@ it("collects existing photos without picking one at random for a matching captio
     "/maya/avatar.jpg",
   ]);
   expect(pickCameraRollPhoto(roll, "cafe window").url).toBe("/maya/cafe.jpg");
+});
+
+it("treats 99 hearts as enough for a photo", () => {
+  expect(PHOTO_UNLOCK_COST).toBe(99);
+  expect(canAffordPhoto(0)).toBe(false);
+  expect(canAffordPhoto(98)).toBe(false);
+  expect(canAffordPhoto(99)).toBe(true);
+  expect(canAffordPhoto(150)).toBe(true);
 });

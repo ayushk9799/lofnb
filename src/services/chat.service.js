@@ -5,7 +5,7 @@ import { MemoryJobModel } from "../models/memory-job.model.js";
 import { requireOwnedRelationship } from "./relationship.service.js";
 import { allocateMessageSequence } from "./sequence.service.js";
 import { assembleContext } from "./context.service.js";
-import { attachCompanionPhoto, countPriorPhotoRefusals, extractPhotoIntent } from "./companion-photo.service.js";
+import { attachCompanionPhoto, canAffordPhoto, countPriorPhotoRefusals, extractPhotoIntent } from "./companion-photo.service.js";
 import { attachCompanionVoice, extractVoiceIntent } from "./companion-voice.service.js";
 import { resolveCompanionMedia } from "./companion-media.service.js";
 import { intentsFromToolCalls, toolsForCompanionTurn } from "./companion-tools.js";
@@ -66,7 +66,10 @@ export async function transcribeVoiceNote({mediaProvider, media, mediaKey, signa
     return {...transcript, text};
 }
 
-function toolFollowUpContent(name) {
+function toolFollowUpContent(name, { canSendPhoto = true } = {}) {
+    if (name === "send_photo" && !canSendPhoto) {
+        return "You are not sending a photo. Write the no in the bubble. Do not mention tools.";
+    }
     if (name === "send_photo") return "Photo will attach. Write the chat bubble like you dropped it. Do not mention tools.";
     if (name === "refuse_photo") return "You are not sending a photo. Write the no in the bubble. Do not mention tools.";
     if (name === "send_voice_note") return "Voice note will attach. Write a short bubble. Do not mention tools.";
@@ -74,7 +77,7 @@ function toolFollowUpContent(name) {
     return "This turn is text only. Write the chat bubble. Do not mention tools.";
 }
 
-function toolFollowUpMessages(toolCalls = []) {
+function toolFollowUpMessages(toolCalls = [], { canSendPhoto = true } = {}) {
     const calls = toolCalls.map((call, index) => {
         const args = call?.function?.arguments ?? call?.arguments ?? "{}";
         return {
@@ -91,7 +94,7 @@ function toolFollowUpMessages(toolCalls = []) {
         ...calls.map((call) => ({
             role: "tool",
             tool_call_id: call.id,
-            content: toolFollowUpContent(call.function.name),
+            content: toolFollowUpContent(call.function.name, { canSendPhoto }),
         })),
     ];
 }
@@ -191,10 +194,12 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             emit("seen", { userMessageId: user._id, userSequence: user.sequenceNumber, seenAt: seenAt.toISOString() });
             emit("message", {id: assistant._id, userId: user._id, userSequence: user.sequenceNumber, sequenceNumber: assistant.sequenceNumber});
             let toolCalls = [];
+            const canSendPhoto = canAffordPhoto(body.clientGems);
             const priorPhotoRefusals = await countPriorPhotoRefusals(relationshipId, user.sequenceNumber);
             const mediaTurn = toolsForCompanionTurn(currentMessage, {
                 model: selectedLlm.model,
                 priorPhotoRefusals,
+                canSendPhoto,
             });
             const consume = async (stream) => {
                 for await (const chunk of stream) {
@@ -222,7 +227,7 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             }));
             if (!content.trim() && toolCalls.length) {
                 await consume(selectedLlm.streamChat({
-                    messages: [...context.messages, ...toolFollowUpMessages(toolCalls)],
+                    messages: [...context.messages, ...toolFollowUpMessages(toolCalls, { canSendPhoto })],
                     signal: generationSignal,
                 }));
             }
@@ -237,22 +242,29 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
                 userText: currentMessage,
                 replyText: content,
                 forceSend: mediaTurn.forceSend,
+                canSendPhoto,
             });
             const photoIntent = resolved.photo;
             const voiceIntent = resolved.voice;
             if (!content.trim() && fromTools.photo?.action === "refuse" && !mediaTurn.forceSend) {
                 content = fromTools.photo.reason || "not sending one.";
+            } else if (!content.trim() && !canSendPhoto && fromTools.photo?.action === "send") {
+                content = "not sending one.";
             } else if (!content.trim() && fromTools.voice?.action === "refuse") {
                 content = fromTools.voice.reason || "not sending a voice note.";
             }
             if (!content.trim() && !voiceIntent && !photoIntent) {
                 throw new Error("The model returned an empty response");
             }
-            const saved = await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: {
+            const generationFields = {
                 content, status: "completed", completedAt: new Date(), memoryPending: true,
                 "generation.latencyMs": Date.now() - startedAt, "generation.retrievedMemoryIds": context.retrievedMemoryIds,
                 "generation.mediaDecision": resolved.decision,
-            }});
+            };
+            if (!canSendPhoto && resolved.decision === "image_refused") {
+                generationFields["generation.mediaRefuseReason"] = "insufficient_gems";
+            }
+            const saved = await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: generationFields});
             if (!saved.modifiedCount) throw new Error("Reply lease expired");
             if (voiceIntent && !photoIntent) {
                 await attachCompanionVoice({
@@ -262,6 +274,7 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             } else if (photoIntent) {
                 await attachCompanionPhoto({
                     relationshipId, assistantMessage: assistant, intent: photoIntent, mediaProvider, storage,
+                    skipImageGeneration: env?.NODE_ENV === "development",
                 });
             }
             // The completed message is the durable outbox. A worker recovers a failed enqueue.

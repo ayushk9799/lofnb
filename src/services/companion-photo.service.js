@@ -1,8 +1,16 @@
 import { MessageModel } from "../models/message.model.js";
 import { RelationshipModel } from "../models/relationship.model.js";
+import { requireOwnedRelationship } from "./relationship.service.js";
+import { HttpError } from "../utils/http-error.js";
 
 const PHOTO_TAG = /%%PHOTO(?:\s+\w+)?\s*\|\s*([^%\n]+)(?:\s*%%?)?/gi;
 const PHOTO_COOLDOWN_TURNS = 3;
+export const PHOTO_UNLOCK_COST = 99;
+
+export function canAffordPhoto(clientGems) {
+    const gems = Number(clientGems);
+    return Number.isFinite(gems) && gems >= PHOTO_UNLOCK_COST;
+}
 export const PHOTO_POLICIES = ["may_refuse", "send_when_asked"];
 export const PHOTO_POLICY = "send_when_asked";
 const LORE_STOP = new Set([
@@ -144,11 +152,14 @@ export async function countPriorPhotoRefusals(relationshipId, beforeSequence) {
         role: "assistant",
         sequenceNumber: { $lt: beforeSequence },
         status: { $in: ["completed", "partial"] },
-    }).sort({ sequenceNumber: -1 }).limit(16).select("content mediaType generation.mediaDecision").lean();
-    return recent.filter((message) =>
-        message.generation?.mediaDecision === "image_refused" ||
-        (!message.mediaType && replyRefusesPhoto(message.content))
-    ).length;
+    }).sort({ sequenceNumber: -1 }).limit(16)
+        .select("content mediaType generation.mediaDecision generation.mediaRefuseReason")
+        .lean();
+    return recent.filter((message) => {
+        if (message.generation?.mediaRefuseReason === "insufficient_gems") return false;
+        return message.generation?.mediaDecision === "image_refused" ||
+            (!message.mediaType && replyRefusesPhoto(message.content));
+    }).length;
 }
 
 export function looksLikeVisualPhotoQuery(query, replyText = "") {
@@ -242,6 +253,7 @@ export async function attachCompanionPhoto({
     intent,
     mediaProvider,
     storage,
+    skipImageGeneration = false,
 }) {
     try {
         if (!assistantMessage?._id) return null;
@@ -262,7 +274,7 @@ export async function attachCompanionPhoto({
             stored = { url: galleryHit.url, key: galleryHit.key, mimeType: "image/jpeg" };
             source = "gallery";
             galleryCaption = galleryHit.caption;
-        } else if (mediaProvider?.generateImage && storage?.upload) {
+        } else if (!skipImageGeneration && mediaProvider?.generateImage && storage?.upload) {
             const prompt = buildCompanionImagePrompt(character, query);
             const generated = await mediaProvider.generateImage({
                 prompt,
@@ -275,6 +287,13 @@ export async function attachCompanionPhoto({
                 folder: `messages/${relationshipId}`,
             });
             source = "generated";
+        } else if (skipImageGeneration) {
+            const fallback = pickCameraRollPhoto(roll, query);
+            if (fallback?.url) {
+                stored = { url: fallback.url, key: fallback.key, mimeType: "image/jpeg" };
+                source = "generated";
+                galleryCaption = fallback.caption;
+            }
         }
         if (!stored?.url) return null;
 
@@ -284,6 +303,8 @@ export async function attachCompanionPhoto({
             source,
             prompt: source === "generated" ? query.slice(0, 500) : undefined,
             galleryCaption,
+            locked: true,
+            unlockCost: PHOTO_UNLOCK_COST,
         };
         for (const key of Object.keys(mediaMeta)) {
             if (mediaMeta[key] == null || mediaMeta[key] === "") delete mediaMeta[key];
@@ -302,4 +323,62 @@ export async function attachCompanionPhoto({
         console.warn("[chat] companion photo skipped:", error?.message || error);
         return null;
     }
+}
+
+export async function unlockCompanionPhoto({
+    relationshipId,
+    messageId,
+    userId,
+    currencyService,
+    customerId,
+}) {
+    await requireOwnedRelationship(relationshipId, userId);
+    const message = await MessageModel.findOne({
+        _id: messageId,
+        relationshipId,
+        role: "assistant",
+    });
+    if (!message) throw new HttpError(404, "Photo not found", "NOT_FOUND");
+    if (message.mediaType !== "image" || !message.mediaUrl) {
+        throw new HttpError(400, "This message has no photo to unlock", "NOT_A_PHOTO");
+    }
+
+    const meta = {
+        ...(message.mediaMeta?.toObject?.() || message.mediaMeta || {}),
+    };
+    const devPreviewLock = process.env.NODE_ENV === "development"
+        && meta.locked !== false
+        && !meta.unlockedAt;
+    if (meta.locked !== true && !devPreviewLock) {
+        return {
+            alreadyUnlocked: true,
+            spent: 0,
+            remainingGems: undefined,
+            mediaMeta: { ...meta, locked: false },
+        };
+    }
+
+    const cost = Number(meta.unlockCost) > 0 ? Number(meta.unlockCost) : PHOTO_UNLOCK_COST;
+    if (!currencyService) {
+        throw new HttpError(500, "Currency is not configured", "CURRENCY_NOT_CONFIGURED");
+    }
+    const result = await currencyService.adjustBalance(
+        customerId,
+        -Math.abs(cost),
+        "GEMS",
+        `unlock-${userId}-${messageId}`,
+    );
+    message.mediaMeta = {
+        ...meta,
+        locked: false,
+        unlockCost: cost,
+        unlockedAt: new Date(),
+    };
+    await message.save();
+    return {
+        alreadyUnlocked: false,
+        spent: cost,
+        remainingGems: result.balance,
+        mediaMeta: message.mediaMeta,
+    };
 }

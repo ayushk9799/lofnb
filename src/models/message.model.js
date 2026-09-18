@@ -32,6 +32,9 @@ const messageSchema = new Schema({
         source: { type: String, enum: ["gallery", "generated", "upload"] },
         prompt: { type: String, maxlength: 500 },
         galleryCaption: { type: String, maxlength: 240 },
+        locked: { type: Boolean },
+        unlockCost: { type: Number, min: 0 },
+        unlockedAt: { type: Date },
     },
     status: {
         type: String,
@@ -54,6 +57,10 @@ const messageSchema = new Schema({
         mediaDecision: {
             type: String,
             enum: ["text", "image_sent", "image_refused", "audio_sent", "audio_refused"],
+        },
+        mediaRefuseReason: {
+            type: String,
+            enum: ["insufficient_gems"],
         },
     },
     completedAt: { type: Date },

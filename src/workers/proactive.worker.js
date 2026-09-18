@@ -4,62 +4,62 @@ import { CharacterModel } from "../models/character.model.js";
 import { withChatLease } from "../services/chat.service.js";
 import { initiateScenario } from "../services/scenario.service.js";
 
-function getLocalHour(timeZone) {
-    try {
-        const str = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hour12: false }).format(new Date());
-        return parseInt(str, 10);
-    } catch {
-        return new Date().getUTCHours();
+export const LEFT_ON_READ_MS = 60_000;
+export const GONE_OFFLINE_MS = 2 * 60_000;
+export const LATE_REPLY_MS = 90_000;
+
+function ageMs(date, now) {
+    if (!date) return 0;
+    return now - new Date(date).getTime();
+}
+
+export function classifyProactiveTrigger(relationship, lastMessage, now = Date.now(), delays = {}) {
+    const leftOnReadMs = delays.leftOnReadMs ?? LEFT_ON_READ_MS;
+    const goneOfflineMs = delays.goneOfflineMs ?? GONE_OFFLINE_MS;
+    const lateReplyMs = delays.lateReplyMs ?? LATE_REPLY_MS;
+    if (!lastMessage) return null;
+    if (lastMessage.role === "assistant" && lastMessage.origin === "initiated") return null;
+    if (lastMessage.role === "user") {
+        return ageMs(lastMessage.createdAt, now) >= lateReplyMs ? "check_in" : null;
     }
+    const isRead = (relationship.userLastReadSequence || 0) >= lastMessage.sequenceNumber;
+    if (isRead) {
+        const readAt = relationship.userLastReadAt || lastMessage.createdAt;
+        return ageMs(readAt, now) >= leftOnReadMs ? "left_on_read" : null;
+    }
+    return ageMs(lastMessage.createdAt, now) >= goneOfflineMs ? "idle_nudge" : null;
 }
 
 export async function processProactiveCheckIns({
     llm,
     signal,
-    offlineThresholdMs = 3 * 3600 * 1000,
-    cooldownMs = 6 * 3600 * 1000,
+    leftOnReadMs = LEFT_ON_READ_MS,
+    goneOfflineMs = GONE_OFFLINE_MS,
+    lateReplyMs = LATE_REPLY_MS,
 }) {
     if (!llm) return;
     const now = Date.now();
+    const staleMs = Math.min(leftOnReadMs, goneOfflineMs, lateReplyMs);
     const candidates = await RelationshipModel.find({
-        lastMessageAt: { $lt: new Date(now - offlineThresholdMs) },
-        $and: [
-            {
-                $or: [
-                    { lastInitiatedAt: { $exists: false } },
-                    { lastInitiatedAt: { $lt: new Date(now - cooldownMs) } },
-                ],
-            },
-            {
-                $or: [
-                    { "chatLease.expiresAt": { $exists: false } },
-                    { "chatLease.expiresAt": { $lt: new Date(now) } },
-                ],
-            },
+        lastMessageAt: { $lt: new Date(now - staleMs) },
+        $or: [
+            { "chatLease.expiresAt": { $exists: false } },
+            { "chatLease.expiresAt": { $lt: new Date(now) } },
         ],
-    }).limit(10);
+    }).limit(20);
 
+    const delays = { leftOnReadMs, goneOfflineMs, lateReplyMs };
     for (const relationship of candidates) {
         if (signal?.aborted) break;
         try {
-            const character = await CharacterModel.findById(relationship.characterId).lean();
-            if (!character) continue;
-
-            const localHour = getLocalHour(character.timezone || "America/New_York");
-            if (localHour < 9 || localHour >= 22) continue;
-
             const lastMessage = await MessageModel.findOne({ relationshipId: relationship._id })
                 .sort({ sequenceNumber: -1 })
                 .lean();
+            const triggerType = classifyProactiveTrigger(relationship, lastMessage, now, delays);
+            if (!triggerType) continue;
 
-            if (!lastMessage) continue;
-            if (lastMessage.role === "assistant" && lastMessage.origin === "initiated") {
-                continue;
-            }
-
-            const isLeftOnRead = lastMessage.role === "assistant" &&
-                (relationship.userLastReadSequence || 0) >= lastMessage.sequenceNumber;
-            const triggerType = isLeftOnRead ? "left_on_read" : "check_in";
+            const character = await CharacterModel.findById(relationship.characterId).lean();
+            if (!character) continue;
 
             await withChatLease(relationship._id, relationship.userId, async leaseSignal => {
                 const combinedSignal = AbortSignal.any([
@@ -101,7 +101,7 @@ export function startProactiveWorker(dependencies) {
             }
         })();
     };
-    const timer = setInterval(tick, dependencies.pollIntervalMs || 60_000);
+    const timer = setInterval(tick, dependencies.pollIntervalMs || 15_000);
     timer.unref();
     tick();
     return async () => {

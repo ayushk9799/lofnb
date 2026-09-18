@@ -104,6 +104,12 @@ it("keeps unrelated profile decoration out while retaining voice and relationshi
     expect(prompt).not.toContain(text);
 });
 
+it("omits media tools when the companion is initiating", () => {
+  const prompt = buildCharacterPrompt({ name: "Maya" }, {}, [], undefined, [], null, [], true);
+  expect(prompt).not.toContain("## Media");
+  expect(prompt).not.toContain("send_photo");
+});
+
 it("requires direct short replies without profile performance", () => {
   const prompt = buildCharacterPrompt({ name: "Maya" }, {});
   expect(prompt).toContain("one text bubble of 3–35 words");
