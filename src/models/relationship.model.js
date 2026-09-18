@@ -46,6 +46,11 @@ const relationshipSchema = new Schema({
     userLastReadAt: { type: Date },
     companionLastReadSequence: { type: Number, default: 0, min: 0 },
     companionLastReadAt: { type: Date },
+    // Free-chat window: after 10 user messages she goes offline until
+    // companionOfflineUntil. When that timestamp passes, freeMessageWindowStart
+    // advances so the next 10 can begin.
+    companionOfflineUntil: { type: Date, index: true },
+    freeMessageWindowStart: { type: Date },
     nextSequence: { type: Number, default: 0, min: 0, select: false },
 }, { timestamps: true });
 relationshipSchema.index({ userId: 1, characterId: 1 }, { unique: true });

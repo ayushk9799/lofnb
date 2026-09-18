@@ -2,6 +2,12 @@ import { MessageModel } from "../models/message.model.js";
 
 const VOICE_TAG = /%%VOICE(?:\s*\|\s*([^%\n]+))?(?:\s*%%?)?/gi;
 const VOICE_COOLDOWN_TURNS = 3;
+export const VOICE_UNLOCK_COST = 50;
+
+export function canAffordVoice(clientGems) {
+    const gems = Number(clientGems);
+    return Number.isFinite(gems) && gems >= VOICE_UNLOCK_COST;
+}
 
 export function extractVoiceIntent(text) {
     const raw = String(text || "");
@@ -95,6 +101,8 @@ export async function attachCompanionVoice({
             durationMs: estimateSpeechDurationMs(spoken),
             source: "generated",
             transcript: spoken,
+            locked: true,
+            unlockCost: VOICE_UNLOCK_COST,
         };
 
         await MessageModel.updateOne({ _id: assistantMessage._id }, {

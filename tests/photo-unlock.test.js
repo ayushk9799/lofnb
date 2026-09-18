@@ -166,3 +166,84 @@ it("returns insufficient balance without unlocking", async () => {
   const saved = await MessageModel.findById(message._id).lean();
   expect(saved.mediaMeta.locked).toBe(true);
 });
+
+async function createLockedVoice() {
+  return MessageModel.create({
+    relationshipId: relationship._id,
+    sequenceNumber: 1,
+    role: "assistant",
+    content: "one sec",
+    status: "completed",
+    mediaType: "audio",
+    mediaUrl: "https://example.com/locked.mp3",
+    mediaMeta: { locked: true, unlockCost: 50, source: "generated", transcript: "hey" },
+  });
+}
+
+it("unlocks a locked voice note by spending 50 hearts", async () => {
+  const message = await createLockedVoice();
+  mockRevenueCat({ balance: 20 });
+
+  const res = await fetch(
+    `${baseUrl}/api/relationships/${relationship._id}/messages/${message._id}/unlock`,
+    { method: "POST", headers: { "content-type": "application/json", "x-user-id": "alice" }, body: "{}" },
+  );
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.data.spent).toBe(50);
+  expect(body.data.remainingGems).toBe(20);
+  expect(body.data.mediaMeta.locked).toBe(false);
+  expect(body.data.alreadyUnlocked).toBe(false);
+
+  const saved = await MessageModel.findById(message._id).lean();
+  expect(saved.mediaMeta.locked).toBe(false);
+  expect(saved.mediaMeta.unlockedAt).toBeTruthy();
+  expect(revenueCatCalls()).toHaveLength(1);
+});
+
+it("does not spend again when the voice note is already unlocked", async () => {
+  const message = await createLockedVoice();
+  mockRevenueCat({ balance: 20 });
+  const url = `${baseUrl}/api/relationships/${relationship._id}/messages/${message._id}/unlock`;
+  const headers = { "content-type": "application/json", "x-user-id": "alice" };
+  await fetch(url, { method: "POST", headers, body: "{}" });
+  const again = await fetch(url, { method: "POST", headers, body: "{}" });
+  expect(again.status).toBe(200);
+  const body = await again.json();
+  expect(body.data.alreadyUnlocked).toBe(true);
+  expect(body.data.spent).toBe(0);
+  expect(revenueCatCalls()).toHaveLength(1);
+});
+
+it("rejects unlocking a user voice note", async () => {
+  const message = await MessageModel.create({
+    relationshipId: relationship._id,
+    sequenceNumber: 1,
+    role: "user",
+    content: "listen",
+    status: "completed",
+    mediaType: "audio",
+    mediaUrl: "https://example.com/me.mp3",
+  });
+  const res = await fetch(
+    `${baseUrl}/api/relationships/${relationship._id}/messages/${message._id}/unlock`,
+    { method: "POST", headers: { "content-type": "application/json", "x-user-id": "alice" }, body: "{}" },
+  );
+  expect(res.status).toBe(404);
+});
+
+it("returns insufficient balance without unlocking a voice note", async () => {
+  const message = await createLockedVoice();
+  mockRevenueCat({
+    ok: false,
+    status: 422,
+    message: "Customer's balance is not enough to perform the transaction.",
+  });
+  const res = await fetch(
+    `${baseUrl}/api/relationships/${relationship._id}/messages/${message._id}/unlock`,
+    { method: "POST", headers: { "content-type": "application/json", "x-user-id": "alice" }, body: "{}" },
+  );
+  expect(res.status).toBe(422);
+  const saved = await MessageModel.findById(message._id).lean();
+  expect(saved.mediaMeta.locked).toBe(true);
+});

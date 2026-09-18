@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import { z } from "zod";
 import { requireObjectId } from "../middleware/error-handler.js";
 import { generateReply, withChatLease } from "../services/chat.service.js";
+import { getCompanionAvailability } from "../services/chat-quota.service.js";
 import { initiateScenario } from "../services/scenario.service.js";
 import { requireOwnedRelationship } from "../services/relationship.service.js";
 import { MessageModel } from "../models/message.model.js";
@@ -92,9 +93,17 @@ export function createChatRouter(dependencies) {
             timezone: z.string().max(100).optional(),
             triggerType: z.enum(["follow_up", "idle_nudge"]).optional(),
         }).parse(req.body || {});
-        const data = await withChatLease(relationshipId, req.auth.userId, signal => initiateScenario({
-            relationshipId, userId: req.auth.userId, llm: dependencies.llm, userTimezone: body.timezone, triggerType: body.triggerType || "follow_up", signal,
-        }));
+        const data = await withChatLease(relationshipId, req.auth.userId, async signal => {
+            const availability = await getCompanionAvailability({
+                userId: req.auth.userId,
+                relationshipId,
+                env: dependencies.env,
+            });
+            if (availability.companionOffline) return null;
+            return initiateScenario({
+                relationshipId, userId: req.auth.userId, llm: dependencies.llm, userTimezone: body.timezone, triggerType: body.triggerType || "follow_up", signal,
+            });
+        });
         res.status(data ? 201 : 200).json({data, ...(data ? {} : {skipped: true})});
     });
     router.post("/generate-image", async (req, res) => {

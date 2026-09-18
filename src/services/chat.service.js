@@ -6,11 +6,12 @@ import { requireOwnedRelationship } from "./relationship.service.js";
 import { allocateMessageSequence } from "./sequence.service.js";
 import { assembleContext } from "./context.service.js";
 import { attachCompanionPhoto, canAffordPhoto, countPriorPhotoRefusals, extractPhotoIntent } from "./companion-photo.service.js";
-import { attachCompanionVoice, extractVoiceIntent } from "./companion-voice.service.js";
+import { attachCompanionVoice, canAffordVoice, extractVoiceIntent } from "./companion-voice.service.js";
 import { resolveCompanionMedia } from "./companion-media.service.js";
 import { intentsFromToolCalls, toolsForCompanionTurn } from "./companion-tools.js";
 import { HttpError } from "../utils/http-error.js";
 import { sendChatPushNotification } from "./push-notification.service.js";
+import { assertCompanionOnline, getCompanionAvailability } from "./chat-quota.service.js";
 
 export async function withChatLease(relationshipId, userId, work) {
     await requireOwnedRelationship(relationshipId, userId);
@@ -66,18 +67,21 @@ export async function transcribeVoiceNote({mediaProvider, media, mediaKey, signa
     return {...transcript, text};
 }
 
-function toolFollowUpContent(name, { canSendPhoto = true } = {}) {
+function toolFollowUpContent(name, { canSendPhoto = true, canSendVoice = true } = {}) {
     if (name === "send_photo" && !canSendPhoto) {
         return "You are not sending a photo. Write the no in the bubble. Do not mention tools.";
     }
     if (name === "send_photo") return "Photo will attach. Write the chat bubble like you dropped it. Do not mention tools.";
     if (name === "refuse_photo") return "You are not sending a photo. Write the no in the bubble. Do not mention tools.";
+    if (name === "send_voice_note" && !canSendVoice) {
+        return "You are not sending a voice note. Write the no in the bubble. Do not mention tools.";
+    }
     if (name === "send_voice_note") return "Voice note will attach. Write a short bubble. Do not mention tools.";
     if (name === "refuse_voice_note") return "You are not sending a voice note. Write the no in the bubble. Do not mention tools.";
     return "This turn is text only. Write the chat bubble. Do not mention tools.";
 }
 
-function toolFollowUpMessages(toolCalls = [], { canSendPhoto = true } = {}) {
+function toolFollowUpMessages(toolCalls = [], { canSendPhoto = true, canSendVoice = true } = {}) {
     const calls = toolCalls.map((call, index) => {
         const args = call?.function?.arguments ?? call?.arguments ?? "{}";
         return {
@@ -94,7 +98,7 @@ function toolFollowUpMessages(toolCalls = [], { canSendPhoto = true } = {}) {
         ...calls.map((call) => ({
             role: "tool",
             tool_call_id: call.id,
-            content: toolFollowUpContent(call.function.name, { canSendPhoto }),
+            content: toolFollowUpContent(call.function.name, { canSendPhoto, canSendVoice }),
         })),
     ];
 }
@@ -146,12 +150,16 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
                 mediaMeta = {...mediaMeta, mimeType: media.mimeType};
             }
         }
-        if (!user) user = await MessageModel.create({
-            relationshipId, sequenceNumber: await allocateMessageSequence(relationshipId, userId),
-            role: "user", content: body.mediaType === "audio" ? (body.content || mediaMeta.transcript) : body.content,
-            status: "completed", clientMessageId: body.clientMessageId, completedAt: new Date(),
-            mediaUrl: body.mediaUrl, mediaKey: body.mediaKey, mediaType: body.mediaType, mediaMeta,
-        });
+        if (!user) {
+            await assertCompanionOnline({ userId, relationshipId, env });
+            user = await MessageModel.create({
+                relationshipId, sequenceNumber: await allocateMessageSequence(relationshipId, userId),
+                role: "user", content: body.mediaType === "audio" ? (body.content || mediaMeta.transcript) : body.content,
+                status: "completed", clientMessageId: body.clientMessageId, completedAt: new Date(),
+                mediaUrl: body.mediaUrl, mediaKey: body.mediaKey, mediaType: body.mediaType, mediaMeta,
+            });
+            await getCompanionAvailability({ userId, relationshipId, env }).catch(() => {});
+        }
         const seenAt = new Date();
         if (!user.readAt) {
             user.readAt = seenAt;
@@ -195,11 +203,13 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             emit("message", {id: assistant._id, userId: user._id, userSequence: user.sequenceNumber, sequenceNumber: assistant.sequenceNumber});
             let toolCalls = [];
             const canSendPhoto = canAffordPhoto(body.clientGems);
+            const canSendVoice = canAffordVoice(body.clientGems);
             const priorPhotoRefusals = await countPriorPhotoRefusals(relationshipId, user.sequenceNumber);
             const mediaTurn = toolsForCompanionTurn(currentMessage, {
                 model: selectedLlm.model,
                 priorPhotoRefusals,
                 canSendPhoto,
+                canSendVoice,
             });
             const consume = async (stream) => {
                 for await (const chunk of stream) {
@@ -227,7 +237,7 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             }));
             if (!content.trim() && toolCalls.length) {
                 await consume(selectedLlm.streamChat({
-                    messages: [...context.messages, ...toolFollowUpMessages(toolCalls, { canSendPhoto })],
+                    messages: [...context.messages, ...toolFollowUpMessages(toolCalls, { canSendPhoto, canSendVoice })],
                     signal: generationSignal,
                 }));
             }
@@ -243,6 +253,7 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
                 replyText: content,
                 forceSend: mediaTurn.forceSend,
                 canSendPhoto,
+                canSendVoice,
             });
             const photoIntent = resolved.photo;
             const voiceIntent = resolved.voice;
@@ -252,6 +263,8 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
                 content = "not sending one.";
             } else if (!content.trim() && fromTools.voice?.action === "refuse") {
                 content = fromTools.voice.reason || "not sending a voice note.";
+            } else if (!content.trim() && !canSendVoice && fromTools.voice?.action === "send") {
+                content = "not sending a voice note.";
             }
             if (!content.trim() && !voiceIntent && !photoIntent) {
                 throw new Error("The model returned an empty response");
@@ -262,6 +275,9 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
                 "generation.mediaDecision": resolved.decision,
             };
             if (!canSendPhoto && resolved.decision === "image_refused") {
+                generationFields["generation.mediaRefuseReason"] = "insufficient_gems";
+            }
+            if (!canSendVoice && resolved.decision === "audio_refused") {
                 generationFields["generation.mediaRefuseReason"] = "insufficient_gems";
             }
             const saved = await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: generationFields});

@@ -29,10 +29,11 @@ export function resolveCompanionMedia({
     replyText = "",
     forceSend = false,
     canSendPhoto = true,
+    canSendVoice = true,
 } = {}) {
     const spoken = String(toolVoice?.spoken || "").trim();
     if (spoken) {
-        return { photo: null, voice: { spoken: spoken.slice(0, 800) }, decision: "audio_sent" };
+        return gateVoice({ photo: null, voice: { spoken: spoken.slice(0, 800) }, decision: "audio_sent" }, canSendVoice);
     }
     if (toolVoice?.action === "refuse") {
         return { photo: null, voice: null, decision: "audio_refused" };
@@ -67,4 +68,9 @@ export function resolveCompanionMedia({
 function gatePhoto(resolved, canSendPhoto) {
     if (canSendPhoto) return resolved;
     return { photo: null, voice: null, decision: "image_refused" };
+}
+
+function gateVoice(resolved, canSendVoice) {
+    if (canSendVoice) return resolved;
+    return { photo: null, voice: null, decision: "audio_refused" };
 }

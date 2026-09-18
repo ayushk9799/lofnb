@@ -7,8 +7,9 @@ import { MemoryModel } from "../src/models/memory.model.js";
 import { MemoryJobModel } from "../src/models/memory-job.model.js";
 import { SwipeModel } from "../src/models/swipe.model.js";
 
-const targetEmail = process.argv[2] || "ayushkumarsanu00@gmail.com";
-const shouldDeleteUser = process.argv.includes("--delete-user");
+const args = process.argv.slice(2);
+const shouldDeleteUser = args.includes("--delete-user");
+const targetEmail = args.find((arg) => !arg.startsWith("--")) || "ayushkumarsanu00@gmail.com";
 
 await connectDatabase(env.MONGODB_URI);
 
@@ -67,14 +68,20 @@ try {
                     minAge: 18,
                     maxAge: 60,
                     avatarKey: "",
+                    onboardedAt: null,
+                    lastDailyHeartsClaimedAt: null,
+                    revenueCatEventAt: null,
                     isPremium: false,
                     premiumEntitlement: "",
                     revenueCatAppUserId: null,
                     premiumExpiresAt: null,
                 },
+                $unset: {
+                    age: 1,
+                },
             }
         );
-        console.log(`- User profile fields reset to initial defaults (bio, vibe, minAge, maxAge, premium).`);
+        console.log(`- User profile fields reset to initial defaults (bio, vibe, minAge, maxAge, age, onboardedAt, premium).`);
     }
 
     console.log("\nReset Summary:");

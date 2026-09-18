@@ -7,8 +7,9 @@ import { RelationshipModel } from "../models/relationship.model.js";
 import { UserModel } from "../models/user.model.js";
 import { requireObjectId } from "../middleware/error-handler.js";
 import { requireOwnedRelationship } from "../services/relationship.service.js";
-import { unlockCompanionPhoto } from "../services/companion-photo.service.js";
+import { unlockCompanionMedia } from "../services/companion-photo.service.js";
 import { CurrencyService } from "../services/currency.service.js";
+import { attachCompanionAvailability } from "../services/chat-quota.service.js";
 import { HttpError } from "../utils/http-error.js";
 const createRelationship = z.object({
     characterId: z.string().min(1),
@@ -37,7 +38,12 @@ relationshipsRouter.get("/", async (request, response) => {
             return { ...rel, unreadCount };
         })
     );
-    response.json({ data: relationshipsWithUnread });
+    const data = await attachCompanionAvailability(
+        request.auth.userId,
+        relationshipsWithUnread,
+        request.app?.locals?.env,
+    );
+    response.json({ data });
 });
 relationshipsRouter.post("/", async (request, response) => {
     const body = createRelationship.parse(request.body);
@@ -59,7 +65,15 @@ relationshipsRouter.get("/:relationshipId", async (request, response) => {
     const relationshipId = requireObjectId(request.params.relationshipId, "relationshipId");
     const relationship = await requireOwnedRelationship(relationshipId, request.auth.userId);
     await relationship.populate("characterId");
-    response.json({ data: relationship });
+    const payload = typeof relationship.toObject === "function"
+        ? relationship.toObject()
+        : relationship;
+    const [data] = await attachCompanionAvailability(
+        request.auth.userId,
+        [payload],
+        request.app?.locals?.env,
+    );
+    response.json({ data });
 });
 relationshipsRouter.post("/:relationshipId/read", async (request, response) => {
     const relationshipId = requireObjectId(request.params.relationshipId, "relationshipId");
@@ -141,7 +155,7 @@ export function createRelationshipsRouter({ env } = {}) {
         if (!userId) throw new HttpError(401, "Authentication required", "UNAUTHORIZED");
         const user = await UserModel.findOne({ userId }).lean();
         if (!user) throw new HttpError(404, "User not found", "USER_NOT_FOUND");
-        const result = await unlockCompanionPhoto({
+        const result = await unlockCompanionMedia({
             relationshipId,
             messageId,
             userId,

@@ -19,6 +19,7 @@ import { createCurrencyRouter } from "./routes/currency.routes.js";
 export function createApp({ env, llm, visionLlm, embeddingProvider, mediaProvider, storage = new StorageService(env) }) {
     const app = express();
     app.locals.storage = storage;
+    app.locals.env = env;
     app.locals.matchRate = env.MATCH_RATE ?? 1;
     app.disable("x-powered-by");
     app.use(helmet({ crossOriginResourcePolicy: false }));

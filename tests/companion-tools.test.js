@@ -126,3 +126,15 @@ it("drops send_photo and forceSend when the user cannot afford a photo", () => {
     "refuse_voice_note",
   ]);
 });
+
+it("drops send_voice_note when the user cannot afford a voice note", () => {
+  const turn = toolsForCompanionTurn("I wanna hear you", {
+    canSendVoice: false,
+  });
+  expect(turn.tools.map((tool) => tool.function.name)).toEqual([
+    "text",
+    "send_photo",
+    "refuse_photo",
+    "refuse_voice_note",
+  ]);
+});

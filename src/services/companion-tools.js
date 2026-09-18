@@ -151,13 +151,16 @@ export function toolsForCompanionTurn(_userText = "", {
     model,
     priorPhotoRefusals = 0,
     canSendPhoto = true,
+    canSendVoice = true,
 } = {}) {
     if (!modelSupportsTools(model)) {
         return { tools: undefined, toolChoice: undefined, forceSend: false };
     }
-    const tools = canSendPhoto
-        ? COMPANION_TOOLS
-        : COMPANION_TOOLS.filter((tool) => tool.function.name !== "send_photo");
+    const tools = COMPANION_TOOLS.filter((tool) => {
+        if (!canSendPhoto && tool.function.name === "send_photo") return false;
+        if (!canSendVoice && tool.function.name === "send_voice_note") return false;
+        return true;
+    });
     return {
         tools,
         toolChoice: "required",

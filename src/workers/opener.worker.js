@@ -1,6 +1,7 @@
 import { RelationshipModel } from "../models/relationship.model.js";
 import { UserModel } from "../models/user.model.js";
 import { withChatLease } from "../services/chat.service.js";
+import { getCompanionAvailability } from "../services/chat-quota.service.js";
 import { initiateScenario } from "../services/scenario.service.js";
 
 /**
@@ -9,7 +10,7 @@ import { initiateScenario } from "../services/scenario.service.js";
  * A relationship is claimed by clearing openerDueAt before generating so two
  * workers cannot send twice; a failure re-arms it a minute later.
  */
-export async function processDueOpeners({ llm, signal, limit = 10 }) {
+export async function processDueOpeners({ llm, env, signal, limit = 10 }) {
     if (!llm) return;
     for (let i = 0; i < limit; i += 1) {
         if (signal?.aborted) break;
@@ -27,6 +28,18 @@ export async function processDueOpeners({ llm, signal, limit = 10 }) {
         ).lean();
         if (!relationship) break;
         try {
+            const availability = await getCompanionAvailability({
+                userId: relationship.userId,
+                relationshipId: relationship._id,
+                env,
+            });
+            if (availability.companionOffline) {
+                await RelationshipModel.updateOne(
+                    { _id: relationship._id, openerSentAt: { $exists: false } },
+                    { $set: { openerSentAt: new Date() } },
+                );
+                continue;
+            }
             const user = await UserModel.findOne({ userId: relationship.userId }).select("timezone").lean();
             await withChatLease(relationship._id, relationship.userId, async leaseSignal => {
                 const combined = AbortSignal.any([signal || new AbortController().signal, leaseSignal]);

@@ -2,6 +2,7 @@ import { MessageModel } from "../models/message.model.js";
 import { RelationshipModel } from "../models/relationship.model.js";
 import { requireOwnedRelationship } from "./relationship.service.js";
 import { HttpError } from "../utils/http-error.js";
+import { VOICE_UNLOCK_COST } from "./companion-voice.service.js";
 
 const PHOTO_TAG = /%%PHOTO(?:\s+\w+)?\s*\|\s*([^%\n]+)(?:\s*%%?)?/gi;
 const PHOTO_COOLDOWN_TURNS = 3;
@@ -325,7 +326,7 @@ export async function attachCompanionPhoto({
     }
 }
 
-export async function unlockCompanionPhoto({
+export async function unlockCompanionMedia({
     relationshipId,
     messageId,
     userId,
@@ -338,9 +339,11 @@ export async function unlockCompanionPhoto({
         relationshipId,
         role: "assistant",
     });
-    if (!message) throw new HttpError(404, "Photo not found", "NOT_FOUND");
-    if (message.mediaType !== "image" || !message.mediaUrl) {
-        throw new HttpError(400, "This message has no photo to unlock", "NOT_A_PHOTO");
+    if (!message) throw new HttpError(404, "Media not found", "NOT_FOUND");
+    const isPhoto = message.mediaType === "image";
+    const isVoice = message.mediaType === "audio";
+    if ((!isPhoto && !isVoice) || !message.mediaUrl) {
+        throw new HttpError(400, "This message has no media to unlock", "NOT_LOCKED_MEDIA");
     }
 
     const meta = {
@@ -358,7 +361,8 @@ export async function unlockCompanionPhoto({
         };
     }
 
-    const cost = Number(meta.unlockCost) > 0 ? Number(meta.unlockCost) : PHOTO_UNLOCK_COST;
+    const defaultCost = isVoice ? VOICE_UNLOCK_COST : PHOTO_UNLOCK_COST;
+    const cost = Number(meta.unlockCost) > 0 ? Number(meta.unlockCost) : defaultCost;
     if (!currencyService) {
         throw new HttpError(500, "Currency is not configured", "CURRENCY_NOT_CONFIGURED");
     }
@@ -382,3 +386,5 @@ export async function unlockCompanionPhoto({
         mediaMeta: message.mediaMeta,
     };
 }
+
+export const unlockCompanionPhoto = unlockCompanionMedia;

@@ -5,6 +5,8 @@ import {
   extractVoiceIntent,
   looksLikeVoiceRefusal,
   userAskedForVoice,
+  VOICE_UNLOCK_COST,
+  canAffordVoice,
 } from "../src/services/companion-voice.service.js";
 
 it("strips a voice tag and keeps the visible text", () => {
@@ -40,6 +42,14 @@ it("estimates a short spoken duration from word count", () => {
   expect(estimateSpeechDurationMs("hey wrapping this walnut table before I head out")).toBeGreaterThan(
     estimateSpeechDurationMs("hey"),
   );
+});
+
+it("treats 50 hearts as enough for a voice note", () => {
+  expect(VOICE_UNLOCK_COST).toBe(50);
+  expect(canAffordVoice(0)).toBe(false);
+  expect(canAffordVoice(49)).toBe(false);
+  expect(canAffordVoice(50)).toBe(true);
+  expect(canAffordVoice(99)).toBe(true);
 });
 
 it("flags refusals so an asked voice note still gets synthesized", () => {

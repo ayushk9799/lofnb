@@ -47,10 +47,10 @@ const stopMemoryWorker = llm
     ? startMemoryWorker({ llm, embeddingProvider })
     : () => undefined;
 const stopProactiveWorker = llm
-    ? startProactiveWorker({ llm })
+    ? startProactiveWorker({ llm, env })
     : () => undefined;
 const stopOpenerWorker = llm
-    ? startOpenerWorker({ llm })
+    ? startOpenerWorker({ llm, env })
     : () => undefined;
 server.listen(env.PORT, () => {
     console.log(`Lofn API listening on http://localhost:${env.PORT}`);

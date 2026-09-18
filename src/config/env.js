@@ -47,6 +47,16 @@ const schema = z.object({
     REVENUECAT_SECRET_KEY: optionalString,
     REVENUECAT_ENTITLEMENT_ID: z.string().default("premium"),
     DAILY_REWARD_COOLDOWN_SECONDS: z.coerce.number().int().min(0).default(86400),
+    FREE_MESSAGES_PER_COMPANION: z.preprocess((value) => {
+        if (value == null || value === "") return 10;
+        const n = Number(value);
+        return Number.isFinite(n) && n > 0 ? Math.floor(n) : 10;
+    }, z.number().int().positive().default(10)),
+    COMPANION_OFFLINE_MINUTES: z.preprocess((value) => {
+        if (value == null || value === "") return 480;
+        const n = Number(value);
+        return Number.isFinite(n) && n > 0 ? n : 480;
+    }, z.number().positive().default(480)),
 });
 export function loadEnvironment(source = process.env) {
     const isOpenRouter = Boolean(
@@ -58,10 +68,15 @@ export function loadEnvironment(source = process.env) {
     const defaultBaseUrl = isOpenRouter ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1";
     const defaultModel = isOpenRouter ? "openrouter/auto" : "gpt-4o-mini";
     const defaultEmbeddingBaseUrl = isOpenRouter ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1";
+    const minutesFromHours = (() => {
+        const hours = Number(source.COMPANION_OFFLINE_HOURS);
+        return Number.isFinite(hours) && hours > 0 ? hours * 60 : undefined;
+    })();
     const normalized = {
         ...source,
         MONGODB_URI: source.MONGODB_URI ||
             (source.NODE_ENV === "test" ? "mongodb://localhost:27017/lofn_test" : undefined),
+        COMPANION_OFFLINE_MINUTES: source.COMPANION_OFFLINE_MINUTES || minutesFromHours,
         LLM_API_KEY: effectiveApiKey,
         LLM_BASE_URL: source.LLM_BASE_URL ||
             (effectiveApiKey ? defaultBaseUrl : undefined),

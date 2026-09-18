@@ -2,6 +2,7 @@ import { RelationshipModel } from "../models/relationship.model.js";
 import { MessageModel } from "../models/message.model.js";
 import { CharacterModel } from "../models/character.model.js";
 import { withChatLease } from "../services/chat.service.js";
+import { getCompanionAvailability } from "../services/chat-quota.service.js";
 import { initiateScenario } from "../services/scenario.service.js";
 
 export const LEFT_ON_READ_MS = 60_000;
@@ -32,6 +33,7 @@ export function classifyProactiveTrigger(relationship, lastMessage, now = Date.n
 
 export async function processProactiveCheckIns({
     llm,
+    env,
     signal,
     leftOnReadMs = LEFT_ON_READ_MS,
     goneOfflineMs = GONE_OFFLINE_MS,
@@ -57,6 +59,13 @@ export async function processProactiveCheckIns({
                 .lean();
             const triggerType = classifyProactiveTrigger(relationship, lastMessage, now, delays);
             if (!triggerType) continue;
+
+            const availability = await getCompanionAvailability({
+                userId: relationship.userId,
+                relationshipId: relationship._id,
+                env,
+            });
+            if (availability.companionOffline) continue;
 
             const character = await CharacterModel.findById(relationship.characterId).lean();
             if (!character) continue;

@@ -121,6 +121,14 @@ it("does not attach when she called refuse_voice_note", () => {
   })).toEqual({ photo: null, voice: null, decision: "audio_refused" });
 });
 
+it("does not attach a voice note when the user cannot afford one", () => {
+  expect(resolveCompanionMedia({
+    toolVoice: { action: "send", spoken: "hey, wrapping the table now" },
+    replyText: "one sec",
+    canSendVoice: false,
+  })).toEqual({ photo: null, voice: null, decision: "audio_refused" });
+});
+
 it("does not turn a voice tool into a photo even after photo refusals", () => {
   expect(resolveCompanionMedia({
     toolVoice: { action: "send", spoken: "hey it's me" },

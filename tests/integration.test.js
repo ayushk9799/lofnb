@@ -616,9 +616,41 @@ it("attaches synthesized audio from a send_voice_note tool call", async () => {
   expect(assistant.mediaType).toBe("audio");
   expect(assistant.mediaUrl).toBe("/api/storage/messages/rel/voice.mp3");
   expect(assistant.mediaMeta.transcript).toBe("hey, wrapping the table now");
+  expect(assistant.mediaMeta.locked).toBe(true);
+  expect(assistant.mediaMeta.unlockCost).toBe(50);
   expect(assistant.generation.mediaDecision).toBe("audio_sent");
   expect(synthesize).toHaveBeenCalledOnce();
   expect(synthesize.mock.calls[0][0].text).toBe("hey, wrapping the table now");
+});
+it("does not synthesize a voice note when the client has fewer than 50 hearts", async () => {
+  const synthesize = vi.fn();
+  const upload = vi.fn();
+  await reply({
+    body: { content: "I wanna hear you", clientMessageId: "broke-voice", clientGems: 49 },
+    llm: {
+      ...llm,
+      async *streamChat() {
+        yield "one sec";
+        yield {
+          toolCalls: [{
+            function: {
+              name: "send_voice_note",
+              arguments: JSON.stringify({ spoken: "hey, wrapping the table now" }),
+            },
+          }],
+        };
+      },
+    },
+    mediaProvider: { synthesize },
+    storage: { upload },
+  });
+  const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
+  expect(assistant.mediaType).toBeUndefined();
+  expect(assistant.mediaUrl).toBeUndefined();
+  expect(assistant.generation.mediaDecision).toBe("audio_refused");
+  expect(assistant.generation.mediaRefuseReason).toBe("insufficient_gems");
+  expect(synthesize).not.toHaveBeenCalled();
+  expect(upload).not.toHaveBeenCalled();
 });
 it("does not attach audio when she called refuse_voice_note", async () => {
   const synthesize = vi.fn(async () => ({

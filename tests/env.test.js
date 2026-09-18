@@ -17,6 +17,8 @@ describe("environment configuration with OpenAI defaults", () => {
     expect(parsed.EMBEDDING_BASE_URL).toBe("https://api.openai.com/v1");
     expect(parsed.EMBEDDING_MODEL).toBe("text-embedding-3-small");
     expect(parsed.DAILY_REWARD_COOLDOWN_SECONDS).toBe(86400);
+    expect(parsed.FREE_MESSAGES_PER_COMPANION).toBe(10);
+    expect(parsed.COMPANION_OFFLINE_MINUTES).toBe(480);
 
     const provider = createLlmProvider(parsed);
     expect(provider).toBeDefined();
@@ -31,6 +33,57 @@ describe("environment configuration with OpenAI defaults", () => {
     });
 
     expect(parsed.DAILY_REWARD_COOLDOWN_SECONDS).toBe(0);
+  });
+
+  it("defaults an invalid free message cap to 10 and accepts a custom cap", () => {
+    const missing = loadEnvironment({
+      NODE_ENV: "test",
+      MONGODB_URI: "mongodb://localhost:27017/lofn_test",
+    });
+    expect(missing.FREE_MESSAGES_PER_COMPANION).toBe(10);
+
+    const invalid = loadEnvironment({
+      NODE_ENV: "test",
+      MONGODB_URI: "mongodb://localhost:27017/lofn_test",
+      FREE_MESSAGES_PER_COMPANION: "nope",
+    });
+    expect(invalid.FREE_MESSAGES_PER_COMPANION).toBe(10);
+
+    const custom = loadEnvironment({
+      NODE_ENV: "test",
+      MONGODB_URI: "mongodb://localhost:27017/lofn_test",
+      FREE_MESSAGES_PER_COMPANION: "8",
+    });
+    expect(custom.FREE_MESSAGES_PER_COMPANION).toBe(8);
+  });
+
+  it("defaults an invalid companion offline duration to 8 hours and accepts minutes or hours", () => {
+    const missing = loadEnvironment({
+      NODE_ENV: "test",
+      MONGODB_URI: "mongodb://localhost:27017/lofn_test",
+    });
+    expect(missing.COMPANION_OFFLINE_MINUTES).toBe(480);
+
+    const invalid = loadEnvironment({
+      NODE_ENV: "test",
+      MONGODB_URI: "mongodb://localhost:27017/lofn_test",
+      COMPANION_OFFLINE_MINUTES: "nope",
+    });
+    expect(invalid.COMPANION_OFFLINE_MINUTES).toBe(480);
+
+    const customMinutes = loadEnvironment({
+      NODE_ENV: "test",
+      MONGODB_URI: "mongodb://localhost:27017/lofn_test",
+      COMPANION_OFFLINE_MINUTES: "6",
+    });
+    expect(customMinutes.COMPANION_OFFLINE_MINUTES).toBe(6);
+
+    const customHours = loadEnvironment({
+      NODE_ENV: "test",
+      MONGODB_URI: "mongodb://localhost:27017/lofn_test",
+      COMPANION_OFFLINE_HOURS: "8",
+    });
+    expect(customHours.COMPANION_OFFLINE_MINUTES).toBe(480);
   });
 
   it("respects custom LLM_MODEL or LLM_API_KEY if specified", () => {
