@@ -64,6 +64,7 @@ try {
             {
                 $set: {
                     bio: "",
+                    interestedIn: [],
                     vibe: "Everyone",
                     minAge: 18,
                     maxAge: 60,
@@ -81,7 +82,7 @@ try {
                 },
             }
         );
-        console.log(`- User profile fields reset to initial defaults (bio, vibe, minAge, maxAge, age, onboardedAt, premium).`);
+        console.log(`- User profile fields reset to initial defaults (bio, interestedIn, vibe, minAge, maxAge, age, onboardedAt, premium).`);
     }
 
     console.log("\nReset Summary:");

@@ -12,7 +12,8 @@ import { upload } from "../middleware/upload.js";
 
 const updateProfileSchema = z.object({
     name: z.string().max(80).optional(),
-    age: z.coerce.number().int().min(18).max(120).optional(),
+    age: z.coerce.number().int().min(16).max(120).optional(),
+    interestedIn: z.array(z.enum(["female", "male"])).min(1).max(2).optional(),
     bio: z.string().max(500).optional(),
     avatarUrl: z.string().max(2048).optional(),
     vibe: z.enum(["Everyone", "Creative", "Playful", "Warm", "Curious", "Adventurous"]).optional(),
@@ -46,6 +47,7 @@ profileRouter.get("/", async (request, response) => {
             userId: request.auth.userId,
             name: "",
             age: null,
+            interestedIn: [],
             bio: "",
             avatarUrl: "",
             vibe: "Everyone",
