@@ -3,6 +3,7 @@ const characterSchema = new Schema({
     slug: { type: String, required: true, unique: true, trim: true, lowercase: true },
     name: { type: String, required: true, trim: true, maxlength: 80 },
     age: { type: Number, required: true, min: 18, max: 120 },
+    gender: { type: String, enum: ["female", "male"], required: true, default: "female", index: true },
     timezone: { type: String, default: "UTC", validate: value => { try { new Intl.DateTimeFormat("en", {timeZone: value}); return true; } catch { return false; } } },
     promptTemplate: { type: String, maxlength: 16000 },
     dialogueExamples: {

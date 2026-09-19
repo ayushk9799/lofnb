@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { CharacterModel } from "../models/character.model.js";
 
 const fields = new Set([
-    "slug", "name", "age", "timezone", "promptTemplate", "dialogueExamples", "avatarUrl", "ethnicity",
+    "slug", "name", "age", "gender", "timezone", "promptTemplate", "dialogueExamples", "avatarUrl", "ethnicity",
     "occupation", "location", "gallery", "photos", "persona", "conversationalStyle", "backstory", "hobbies", "matchProbability", "version",
 ]);
 

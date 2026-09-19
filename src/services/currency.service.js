@@ -86,6 +86,27 @@ export class CurrencyService {
     }
 
     /**
+     * Ensure a customer exists in RevenueCat v2.
+     */
+    async ensureCustomer(appUserId) {
+        if (!this.isConfigured()) return false;
+        const url = `${REVENUECAT_API_BASE}/projects/${this.projectId}/customers`;
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${this.secretKey}`,
+                },
+                body: JSON.stringify({ id: appUserId }),
+            });
+            return res.ok || res.status === 409 || res.status === 200 || res.status === 201;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Spend or adjust virtual currency balance.
      * @param {string} appUserId - The customer ID
      * @param {number} amount - Negative to spend (e.g. -5), positive to deposit/grant (e.g. +50)
@@ -104,7 +125,7 @@ export class CurrencyService {
         const url = `${REVENUECAT_API_BASE}/projects/${this.projectId}/customers/${encodeURIComponent(appUserId)}/virtual_currencies/transactions`;
         const key = idempotencyKey || crypto.randomUUID();
 
-        const res = await fetch(url, {
+        let res = await fetch(url, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -117,6 +138,26 @@ export class CurrencyService {
                 },
             }),
         });
+
+        if (res.status === 404) {
+            // Customer does not exist in RevenueCat v2 yet. Create them and retry.
+            const created = await this.ensureCustomer(appUserId);
+            if (created) {
+                res = await fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${this.secretKey}`,
+                        "Idempotency-Key": key,
+                    },
+                    body: JSON.stringify({
+                        adjustments: {
+                            [currencyCode]: amount,
+                        },
+                    }),
+                });
+            }
+        }
 
         if (res.status === 422) {
             const errData = await res.json().catch(() => ({}));

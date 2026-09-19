@@ -193,3 +193,37 @@ it("applies saved discovery preferences on the server", async () => {
   expect(ids).not.toContain(String(tooOld._id));
   expect(ids).not.toContain(String(playful._id));
 });
+
+it("filters characters in discovery by interestedIn gender preference", async () => {
+  await UserModel.create({
+    userId: "gender-filter-user",
+    interestedIn: ["female"],
+  });
+  const [femaleChar, maleChar] = await CharacterModel.create([
+    {
+      slug: "female-discovery-char",
+      name: "Female Character",
+      age: 25,
+      gender: "female",
+      persona: { summary: "Female Summary" },
+      backstory: { summary: "Female Backstory" },
+    },
+    {
+      slug: "male-discovery-char",
+      name: "Male Character",
+      age: 25,
+      gender: "male",
+      persona: { summary: "Male Summary" },
+      backstory: { summary: "Male Backstory" },
+    },
+  ]);
+
+  const response = await fetch(`${baseUrl}/api/discovery`, {
+    headers: { "x-user-id": "gender-filter-user" },
+  });
+  const { data } = await response.json();
+  const ids = data.profiles.map((profile) => String(profile._id));
+  expect(ids).toContain(String(femaleChar._id));
+  expect(ids).not.toContain(String(maleChar._id));
+  expect(data.profiles.find((p) => String(p._id) === String(femaleChar._id)).gender).toBe("female");
+});

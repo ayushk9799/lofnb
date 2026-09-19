@@ -18,6 +18,20 @@ function onboardedRecently(onboardedAt, now = Date.now()) {
     return Number.isFinite(stamp) && now - stamp <= WELCOME_HEARTS_WINDOW_MS;
 }
 
+async function readRemainingGems(user, userId, env) {
+    try {
+        const currencyService = new CurrencyService(env);
+        if (!currencyService.isConfigured()) return null;
+        const balances = await currencyService.getBalances(
+            revenueCatCustomerId(user, userId),
+        );
+        const gems = Number(balances?.GEMS);
+        return Number.isFinite(gems) && gems >= 0 ? gems : null;
+    } catch {
+        return null;
+    }
+}
+
 function creditLanded(result, starting, amount) {
     const balance = Number(result?.balance);
     if (!Number.isFinite(balance) || balance < 0) return null;
@@ -31,7 +45,12 @@ function creditLanded(result, starting, amount) {
 async function creditWelcomeHearts(currencyService, customerId, amount, userId) {
     const before = await currencyService.getBalances(customerId);
     const starting = Number(before?.GEMS) || 0;
-    const keys = [`welcome-hearts-${userId}`, `welcome-hearts-${userId}-retry`];
+    const baseKey = customerId || userId;
+    const keys = [
+        `welcome-hearts-${baseKey}`,
+        `welcome-hearts-${baseKey}-retry`,
+        ...(baseKey !== userId ? [`welcome-hearts-${userId}`] : []),
+    ];
 
     for (const key of keys) {
         const result = await currencyService.adjustBalance(customerId, amount, "GEMS", key);
@@ -58,17 +77,29 @@ export async function grantWelcomeHeartsIfEligible({ userId, env } = {}) {
 
     const existing = await UserModel.findOne({ userId }).lean();
     if (!existing?.onboardedAt) {
+        console.warn("[WelcomeHearts] Skip grant: onboardedAt missing", userId);
         return { granted: false, alreadyGranted: false, amount: 0, remainingGems: null };
     }
     if (existing.welcomeHeartsGrantedAt) {
-        return { granted: false, alreadyGranted: true, amount: 0, remainingGems: null };
+        return {
+            granted: false,
+            alreadyGranted: true,
+            amount: 0,
+            remainingGems: await readRemainingGems(existing, userId, env),
+        };
     }
     if (!onboardedRecently(existing.onboardedAt)) {
-        return { granted: false, alreadyGranted: true, amount: 0, remainingGems: null };
+        return {
+            granted: false,
+            alreadyGranted: true,
+            amount: 0,
+            remainingGems: await readRemainingGems(existing, userId, env),
+        };
     }
 
     const currencyService = new CurrencyService(env);
     if (!currencyService.isConfigured()) {
+        console.warn("[WelcomeHearts] Skip grant: RevenueCat currency is not configured");
         return { granted: false, alreadyGranted: false, amount: 0, remainingGems: null };
     }
 

@@ -16,7 +16,10 @@ const createRelationship = z.object({
 });
 const messageQuery = z.object({
     before: z.coerce.number().int().positive().optional(),
+    after: z.coerce.number().int().min(0).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(50),
+}).refine(data => !(data.before !== undefined && data.after !== undefined), {
+    message: "Cannot specify both 'before' and 'after'",
 });
 const markReadBody = z.object({
     sequenceNumber: z.number().int().min(0).optional(),
@@ -119,12 +122,23 @@ relationshipsRouter.get("/:relationshipId/messages", async (request, response) =
     await requireOwnedRelationship(relationshipId, request.auth.userId);
     const query = messageQuery.parse(request.query);
     const filter = { relationshipId };
+    const select = "sequenceNumber role content status createdAt completedAt readAt mediaUrl mediaKey mediaType mediaMeta clientMessageId";
+    if (query.after !== undefined) {
+        filter.sequenceNumber = { $gt: query.after };
+        const messages = await MessageModel.find(filter)
+            .sort({ sequenceNumber: 1 })
+            .limit(query.limit)
+            .select(select)
+            .lean();
+        response.json({ data: messages });
+        return;
+    }
     if (query.before)
         filter.sequenceNumber = { $lt: query.before };
     const messages = await MessageModel.find(filter)
         .sort({ sequenceNumber: -1 })
         .limit(query.limit)
-        .select("sequenceNumber role content status createdAt completedAt readAt mediaUrl mediaKey mediaType mediaMeta clientMessageId")
+        .select(select)
         .lean();
     response.json({ data: messages.reverse() });
 });

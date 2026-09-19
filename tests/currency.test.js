@@ -498,7 +498,7 @@ describe("Currency Routes", () => {
             expect.objectContaining({
                 method: "POST",
                 headers: expect.objectContaining({
-                    "Idempotency-Key": "welcome-hearts-user_test_123",
+                    "Idempotency-Key": "welcome-hearts-rc_user_uuid",
                 }),
             }),
         );
@@ -513,15 +513,18 @@ describe("Currency Routes", () => {
             }),
         });
         const updateSpy = vi.spyOn(UserModel, "findOneAndUpdate");
-        global.fetch = vi.fn();
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ items: [{ currency_code: "GEMS", balance: 100 }] }),
+        });
 
         const router = createCurrencyRouter({ env: mockEnv });
         const { req, res } = createMockReqRes({ method: "POST", url: "/welcome" });
         await invokeRouter(router, req, res);
 
-        expect(res.body).toMatchObject({ claimed: 0, alreadyGranted: true, remainingGems: null });
+        expect(res.body).toMatchObject({ claimed: 0, alreadyGranted: true, remainingGems: 100 });
         expect(updateSpy).not.toHaveBeenCalled();
-        expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it("POST /welcome does not grant before onboarding is complete", async () => {

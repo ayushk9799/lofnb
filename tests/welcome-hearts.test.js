@@ -36,12 +36,17 @@ describe("grantWelcomeHeartsIfEligible", () => {
         });
         const updateSpy = vi.spyOn(UserModel, "findOneAndUpdate");
 
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ items: [{ currency_code: "GEMS", balance: 0 }] }),
+        });
         const result = await grantWelcomeHeartsIfEligible({ userId: "old-user", env });
         expect(result).toEqual({
             granted: false,
             alreadyGranted: true,
             amount: 0,
-            remainingGems: null,
+            remainingGems: 0,
         });
         expect(updateSpy).not.toHaveBeenCalled();
     });
@@ -107,6 +112,6 @@ describe("grantWelcomeHeartsIfEligible", () => {
         });
         expect(updateSpy).toHaveBeenCalled();
         const retryKey = global.fetch.mock.calls[3][1].headers["Idempotency-Key"];
-        expect(retryKey).toBe("welcome-hearts-new-user-retry");
+        expect(retryKey).toBe("welcome-hearts-rc_new-retry");
     });
 });

@@ -28,7 +28,7 @@ discoveryRouter.get("/", async (request, response) => {
   const { cursor, limit } = discoveryQuery.parse(request.query);
   const userId = request.auth.userId;
   const profile = await UserModel.findOne({ userId })
-    .select("vibe minAge maxAge")
+    .select("vibe minAge maxAge interestedIn")
     .lean();
   const minAge = profile?.minAge ?? 18;
   const maxAge = profile?.maxAge ?? 60;
@@ -37,6 +37,9 @@ discoveryRouter.get("/", async (request, response) => {
   const characterMatch = {
     age: { $gte: minAge, $lte: maxAge },
   };
+  if (Array.isArray(profile?.interestedIn) && profile.interestedIn.length > 0) {
+    characterMatch.gender = { $in: profile.interestedIn };
+  }
   if (cursor) {
     characterMatch._id = {
       $gt: new Types.ObjectId(requireObjectId(cursor, "cursor")),
@@ -112,6 +115,7 @@ discoveryRouter.get("/", async (request, response) => {
         slug: 1,
         name: 1,
         age: 1,
+        gender: 1,
         avatarUrl: 1,
         photos: 1,
         gallery: 1,
