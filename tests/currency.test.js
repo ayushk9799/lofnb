@@ -454,4 +454,91 @@ describe("Currency Routes", () => {
         const secondKey = global.fetch.mock.calls[1][1].headers["Idempotency-Key"];
         expect(firstKey).not.toBe(secondKey);
     });
+
+    it("POST /welcome grants 100 hearts once after first onboarding", async () => {
+        const user = {
+            userId: "user_test_123",
+            onboardedAt: new Date(),
+            welcomeHeartsGrantedAt: null,
+            revenueCatAppUserId: "rc_user_uuid",
+        };
+        vi.spyOn(UserModel, "findOne").mockReturnValue({
+            lean: vi.fn().mockResolvedValue(user),
+        });
+        vi.spyOn(UserModel, "findOneAndUpdate").mockResolvedValue({
+            ...user,
+            welcomeHeartsGrantedAt: new Date(),
+        });
+
+        global.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: async () => ({ items: [] }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: async () => ({ items: [{ currency_code: "GEMS", balance: 100 }] }),
+            });
+
+        const router = createCurrencyRouter({ env: { ...mockEnv, WELCOME_HEARTS: 100 } });
+        const { req, res } = createMockReqRes({ method: "POST", url: "/welcome" });
+        await invokeRouter(router, req, res);
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body).toMatchObject({
+            success: true,
+            claimed: 100,
+            alreadyGranted: false,
+            remainingGems: 100,
+        });
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining("/customers/rc_user_uuid/virtual_currencies/transactions"),
+            expect.objectContaining({
+                method: "POST",
+                headers: expect.objectContaining({
+                    "Idempotency-Key": "welcome-hearts-user_test_123",
+                }),
+            }),
+        );
+    });
+
+    it("POST /welcome is a no-op if welcome hearts were already granted", async () => {
+        vi.spyOn(UserModel, "findOne").mockReturnValue({
+            lean: vi.fn().mockResolvedValue({
+                userId: "user_test_123",
+                onboardedAt: new Date(),
+                welcomeHeartsGrantedAt: new Date(),
+            }),
+        });
+        const updateSpy = vi.spyOn(UserModel, "findOneAndUpdate");
+        global.fetch = vi.fn();
+
+        const router = createCurrencyRouter({ env: mockEnv });
+        const { req, res } = createMockReqRes({ method: "POST", url: "/welcome" });
+        await invokeRouter(router, req, res);
+
+        expect(res.body).toMatchObject({ claimed: 0, alreadyGranted: true, remainingGems: null });
+        expect(updateSpy).not.toHaveBeenCalled();
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("POST /welcome does not grant before onboarding is complete", async () => {
+        vi.spyOn(UserModel, "findOne").mockReturnValue({
+            lean: vi.fn().mockResolvedValue({
+                userId: "user_test_123",
+                onboardedAt: null,
+                welcomeHeartsGrantedAt: null,
+            }),
+        });
+        global.fetch = vi.fn();
+
+        const router = createCurrencyRouter({ env: mockEnv });
+        const { req, res } = createMockReqRes({ method: "POST", url: "/welcome" });
+        await invokeRouter(router, req, res);
+
+        expect(res.body).toMatchObject({ claimed: 0, alreadyGranted: false });
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
 });

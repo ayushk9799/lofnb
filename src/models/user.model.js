@@ -31,6 +31,7 @@ const userSchema = new Schema({
     revenueCatEventAt: { type: Date },
     lastDailyHeartsClaimedAt: { type: Date, default: null },
     onboardedAt: { type: Date, default: null },
+    welcomeHeartsGrantedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 export const UserModel = model("User", userSchema);

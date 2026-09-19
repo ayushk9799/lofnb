@@ -17,6 +17,7 @@ describe("environment configuration with OpenAI defaults", () => {
     expect(parsed.EMBEDDING_BASE_URL).toBe("https://api.openai.com/v1");
     expect(parsed.EMBEDDING_MODEL).toBe("text-embedding-3-small");
     expect(parsed.DAILY_REWARD_COOLDOWN_SECONDS).toBe(86400);
+    expect(parsed.WELCOME_HEARTS).toBe(100);
     expect(parsed.FREE_MESSAGES_PER_COMPANION).toBe(10);
     expect(parsed.COMPANION_OFFLINE_MINUTES).toBe(480);
 

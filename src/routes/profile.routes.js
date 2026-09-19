@@ -8,6 +8,7 @@ import { MemoryJobModel } from "../models/memory-job.model.js";
 import { RelationshipModel } from "../models/relationship.model.js";
 import { SwipeModel } from "../models/swipe.model.js";
 import { HttpError } from "../utils/http-error.js";
+import { grantWelcomeHeartsIfEligible } from "../services/welcome-hearts.service.js";
 import { upload } from "../middleware/upload.js";
 
 const updateProfileSchema = z.object({
@@ -81,6 +82,16 @@ async function handleUpdate(request, response) {
         { $set },
         { new: true, upsert: true, setDefaultsOnInsert: true }
     ).lean();
+    if (completeOnboarding && !existing?.onboardedAt) {
+        try {
+            await grantWelcomeHeartsIfEligible({
+                userId: request.auth.userId,
+                env: request.app?.locals?.env,
+            });
+        } catch (error) {
+            console.warn("[WelcomeHearts] Grant after onboarding deferred:", error.message);
+        }
+    }
     response.json({ data: profile });
 }
 

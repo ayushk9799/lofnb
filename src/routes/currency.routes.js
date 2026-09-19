@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { HttpError } from "../utils/http-error.js";
 import { CurrencyService } from "../services/currency.service.js";
+import { grantWelcomeHeartsIfEligible } from "../services/welcome-hearts.service.js";
 import { UserModel } from "../models/user.model.js";
 
 const DEFAULT_DAILY_COOLDOWN_SECONDS = 24 * 60 * 60;
@@ -18,6 +19,31 @@ export function createCurrencyRouter({ env }) {
         ? Math.max(0, Math.floor(configuredCooldown))
         : DEFAULT_DAILY_COOLDOWN_SECONDS;
     const dailyCooldownMs = dailyCooldownSeconds * 1000;
+
+    // POST /api/gems/welcome - One-time 100 hearts after first onboarding
+    router.post("/welcome", async (request, response) => {
+        const userId = request.auth?.userId;
+        if (!userId) {
+            throw new HttpError(401, "Authentication required", "UNAUTHORIZED");
+        }
+
+        const user = await UserModel.findOne({ userId }).lean();
+        if (!user) {
+            throw new HttpError(404, "User not found", "USER_NOT_FOUND");
+        }
+
+        const result = await grantWelcomeHeartsIfEligible({ userId, env });
+        const payload = {
+            success: true,
+            claimed: result.granted ? result.amount : 0,
+            alreadyGranted: result.alreadyGranted,
+            remainingGems: result.remainingGems,
+        };
+        return response.json({
+            ...payload,
+            data: payload,
+        });
+    });
 
     // GET /api/gems/daily-reward - Get status of daily hearts reward
     router.get("/daily-reward", async (request, response) => {

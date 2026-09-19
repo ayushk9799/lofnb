@@ -69,6 +69,7 @@ try {
                     maxAge: 60,
                     avatarKey: "",
                     onboardedAt: null,
+                    welcomeHeartsGrantedAt: null,
                     lastDailyHeartsClaimedAt: null,
                     revenueCatEventAt: null,
                     isPremium: false,

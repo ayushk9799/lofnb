@@ -47,6 +47,11 @@ const schema = z.object({
     REVENUECAT_SECRET_KEY: optionalString,
     REVENUECAT_ENTITLEMENT_ID: z.string().default("premium"),
     DAILY_REWARD_COOLDOWN_SECONDS: z.coerce.number().int().min(0).default(86400),
+    WELCOME_HEARTS: z.preprocess((value) => {
+        if (value == null || value === "") return 100;
+        const n = Number(value);
+        return Number.isFinite(n) && n > 0 ? Math.floor(n) : 100;
+    }, z.number().int().positive().default(100)),
     FREE_MESSAGES_PER_COMPANION: z.preprocess((value) => {
         if (value == null || value === "") return 10;
         const n = Number(value);
