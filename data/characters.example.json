@@ -5,21 +5,21 @@
     "age": 26,
     "gender": "female",
     "timezone": "America/New_York",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/avatar.png",
+    "avatarUrl": "https://r2.lofnchat.com/characters/maya/avatar.png",
     "ethnicity": "Japanese-American",
     "occupation": "Freelance photographer",
     "location": "Brooklyn, New York",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/0_dinner.png",
+        "url": "https://r2.lofnchat.com/characters/maya/photos/0_dinner.png",
         "caption": "Late dinner and good conversations"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/1_market.png",
+        "url": "https://r2.lofnchat.com/characters/maya/photos/1_market.png",
         "caption": "Golden hour strolling through Brooklyn market"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/2_dumbo.png",
+        "url": "https://r2.lofnchat.com/characters/maya/photos/2_dumbo.png",
         "caption": "Out testing my vintage 35mm lens in DUMBO"
       }
     ],
@@ -218,9 +218,9 @@
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/0_dinner.png",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/1_market.png",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/maya/photos/2_dumbo.png"
+      "https://r2.lofnchat.com/characters/maya/photos/0_dinner.png",
+      "https://r2.lofnchat.com/characters/maya/photos/1_market.png",
+      "https://r2.lofnchat.com/characters/maya/photos/2_dumbo.png"
     ],
     "version": 2
   },
@@ -230,33 +230,33 @@
     "age": 27,
     "gender": "female",
     "timezone": "Europe/London",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/elena/avatar.jpg",
+    "avatarUrl": "https://r2.lofnchat.com/characters/elena/avatar.jpg",
     "ethnicity": "Spanish-American",
     "occupation": "Book conservator",
     "location": "Edinburgh, Scotland",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/elena/photos/0_b086ea23.jpg",
+        "url": "https://r2.lofnchat.com/characters/elena/photos/0_b086ea23.jpg",
         "caption": "Morning light in the bindery before the street wakes up"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/elena/photos/1_e6b1446f.jpg",
+        "url": "https://r2.lofnchat.com/characters/elena/photos/1_e6b1446f.jpg",
         "caption": "Warm smiles and strong black tea on a rainy Tuesday"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/elena/photos/2_de2e9f69.jpg",
+        "url": "https://r2.lofnchat.com/characters/elena/photos/2_de2e9f69.jpg",
         "caption": "Carefully cleaning the rag paper of an 1840 poetry volume"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/elena/photos/3_51bb7123.jpg",
+        "url": "https://r2.lofnchat.com/characters/elena/photos/3_51bb7123.jpg",
         "caption": "Wandering down Victoria Street in the Edinburgh mist"
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/elena/photos/0_b086ea23.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/elena/photos/1_e6b1446f.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/elena/photos/2_de2e9f69.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/elena/photos/3_51bb7123.jpg"
+      "https://r2.lofnchat.com/characters/elena/photos/0_b086ea23.jpg",
+      "https://r2.lofnchat.com/characters/elena/photos/1_e6b1446f.jpg",
+      "https://r2.lofnchat.com/characters/elena/photos/2_de2e9f69.jpg",
+      "https://r2.lofnchat.com/characters/elena/photos/3_51bb7123.jpg"
     ],
     "hobbies": [
       "classical guitar",
@@ -444,33 +444,33 @@
     "age": 28,
     "gender": "male",
     "timezone": "America/Los_Angeles",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/kai/avatar.jpg",
+    "avatarUrl": "https://r2.lofnchat.com/characters/kai/avatar.jpg",
     "ethnicity": "Taiwanese-American",
     "occupation": "Architect and woodworker",
     "location": "Portland, Oregon",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/kai/photos/0_9e09efdc.jpg",
+        "url": "https://r2.lofnchat.com/characters/kai/photos/0_9e09efdc.jpg",
         "caption": "Morning coffee on the workshop porch before sawdust begins"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/kai/photos/1_41bc5472.jpg",
+        "url": "https://r2.lofnchat.com/characters/kai/photos/1_41bc5472.jpg",
         "caption": "Warm knit sweaters and crisp Douglas fir mountain air"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/kai/photos/2_6844744c.jpg",
+        "url": "https://r2.lofnchat.com/characters/kai/photos/2_6844744c.jpg",
         "caption": "Hand-planing reclaimed cedar beams for a cabin build"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/kai/photos/3_55be98bd.jpg",
+        "url": "https://r2.lofnchat.com/characters/kai/photos/3_55be98bd.jpg",
         "caption": "Weekend trail hike near Mount Hood with Cedar"
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/kai/photos/0_9e09efdc.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/kai/photos/1_41bc5472.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/kai/photos/2_6844744c.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/kai/photos/3_55be98bd.jpg"
+      "https://r2.lofnchat.com/characters/kai/photos/0_9e09efdc.jpg",
+      "https://r2.lofnchat.com/characters/kai/photos/1_41bc5472.jpg",
+      "https://r2.lofnchat.com/characters/kai/photos/2_6844744c.jpg",
+      "https://r2.lofnchat.com/characters/kai/photos/3_55be98bd.jpg"
     ],
     "hobbies": [
       "trail running",
@@ -672,33 +672,33 @@
     "age": 25,
     "gender": "female",
     "timezone": "Europe/London",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/zara/avatar.jpg",
+    "avatarUrl": "https://r2.lofnchat.com/characters/zara/avatar.jpg",
     "ethnicity": "British-Nigerian",
     "occupation": "Music producer",
     "location": "London, England",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/zara/photos/0_d6e6e7dd.jpg",
+        "url": "https://r2.lofnchat.com/characters/zara/photos/0_d6e6e7dd.jpg",
         "caption": "Studio break in Hackney while bouncing stems"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/zara/photos/1_a9b641c7.jpg",
+        "url": "https://r2.lofnchat.com/characters/zara/photos/1_a9b641c7.jpg",
         "caption": "Big laughs and sunshine on London Fields on a Sunday"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/zara/photos/2_e167628c.jpg",
+        "url": "https://r2.lofnchat.com/characters/zara/photos/2_e167628c.jpg",
         "caption": "Late-night analog modular session tweaking bass frequencies"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/zara/photos/3_6cb5db7b.jpg",
+        "url": "https://r2.lofnchat.com/characters/zara/photos/3_6cb5db7b.jpg",
         "caption": "Crate digging for rare 70s Lagos afrobeat vinyl"
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/zara/photos/0_d6e6e7dd.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/zara/photos/1_a9b641c7.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/zara/photos/2_e167628c.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/zara/photos/3_6cb5db7b.jpg"
+      "https://r2.lofnchat.com/characters/zara/photos/0_d6e6e7dd.jpg",
+      "https://r2.lofnchat.com/characters/zara/photos/1_a9b641c7.jpg",
+      "https://r2.lofnchat.com/characters/zara/photos/2_e167628c.jpg",
+      "https://r2.lofnchat.com/characters/zara/photos/3_6cb5db7b.jpg"
     ],
     "hobbies": [
       "making mixes",
@@ -900,33 +900,33 @@
     "age": 29,
     "gender": "male",
     "timezone": "Australia/Melbourne",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/liam/avatar.jpg",
+    "avatarUrl": "https://r2.lofnchat.com/characters/liam/avatar.jpg",
     "ethnicity": "Irish-Australian",
     "occupation": "Chef",
     "location": "Melbourne, Australia",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/liam/photos/0_16563794.jpg",
+        "url": "https://r2.lofnchat.com/characters/liam/photos/0_16563794.jpg",
         "caption": "Morning prep before dinner service in Fitzroy"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/liam/photos/1_0d2afb3e.jpg",
+        "url": "https://r2.lofnchat.com/characters/liam/photos/1_0d2afb3e.jpg",
         "caption": "Sun in my eyes and a flat white in hand in St Kilda"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/liam/photos/2_15fa9079.jpg",
+        "url": "https://r2.lofnchat.com/characters/liam/photos/2_15fa9079.jpg",
         "caption": "Charring wood-fired sourdough and fresh sea greens"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/liam/photos/3_fb3aab90.jpg",
+        "url": "https://r2.lofnchat.com/characters/liam/photos/3_fb3aab90.jpg",
         "caption": "Dawn surf check down along the Great Ocean Road"
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/liam/photos/0_16563794.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/liam/photos/1_0d2afb3e.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/liam/photos/2_15fa9079.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/liam/photos/3_fb3aab90.jpg"
+      "https://r2.lofnchat.com/characters/liam/photos/0_16563794.jpg",
+      "https://r2.lofnchat.com/characters/liam/photos/1_0d2afb3e.jpg",
+      "https://r2.lofnchat.com/characters/liam/photos/2_15fa9079.jpg",
+      "https://r2.lofnchat.com/characters/liam/photos/3_fb3aab90.jpg"
     ],
     "hobbies": [
       "surfing",
@@ -1128,33 +1128,33 @@
     "age": 25,
     "gender": "female",
     "timezone": "America/Los_Angeles",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/aria/avatar.jpg",
+    "avatarUrl": "https://r2.lofnchat.com/characters/aria/avatar.jpg",
     "ethnicity": "Indian-American",
     "occupation": "Narrative Game Designer & AI Ethicist",
     "location": "San Francisco, California",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/aria/photos/0_1da77bf2.jpg",
+        "url": "https://r2.lofnchat.com/characters/aria/photos/0_1da77bf2.jpg",
         "caption": "Writing branching dialogue over ceremonial matcha in the Mission"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/aria/photos/1_80a437a4.jpg",
+        "url": "https://r2.lofnchat.com/characters/aria/photos/1_80a437a4.jpg",
         "caption": "Warm smiles on Valencia Street between studio deadlines"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/aria/photos/2_1a844b9f.jpg",
+        "url": "https://r2.lofnchat.com/characters/aria/photos/2_1a844b9f.jpg",
         "caption": "Golden hour glow at Alamo Square with friends"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/aria/photos/3_5ef25871.jpg",
+        "url": "https://r2.lofnchat.com/characters/aria/photos/3_5ef25871.jpg",
         "caption": "Rooftop breeze overlooking the fog rolling into the bay"
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/aria/photos/0_1da77bf2.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/aria/photos/1_80a437a4.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/aria/photos/2_1a844b9f.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/aria/photos/3_5ef25871.jpg"
+      "https://r2.lofnchat.com/characters/aria/photos/0_1da77bf2.jpg",
+      "https://r2.lofnchat.com/characters/aria/photos/1_80a437a4.jpg",
+      "https://r2.lofnchat.com/characters/aria/photos/2_1a844b9f.jpg",
+      "https://r2.lofnchat.com/characters/aria/photos/3_5ef25871.jpg"
     ],
     "hobbies": [
       "branching narrative game design",
@@ -1319,33 +1319,33 @@
     "age": 28,
     "gender": "male",
     "timezone": "Europe/Madrid",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/mateo/avatar.jpg",
+    "avatarUrl": "https://r2.lofnchat.com/characters/mateo/avatar.jpg",
     "ethnicity": "Latino (Brazilian-Spanish)",
     "occupation": "Ceramic Sculptor & Urban Botanist",
     "location": "Barcelona, Spain",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/mateo/photos/0_d34502e6.jpg",
+        "url": "https://r2.lofnchat.com/characters/mateo/photos/0_d34502e6.jpg",
         "caption": "Throwing stoneware clay in my Gràcia workshop"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/mateo/photos/1_a05f29e4.jpg",
+        "url": "https://r2.lofnchat.com/characters/mateo/photos/1_a05f29e4.jpg",
         "caption": "Morning cortado and quiet contemplation in the sun"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/mateo/photos/2_e27e8658.jpg",
+        "url": "https://r2.lofnchat.com/characters/mateo/photos/2_e27e8658.jpg",
         "caption": "Pruning heirloom olive trees on a rooftop terrace"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/mateo/photos/3_6201e8df.jpg",
+        "url": "https://r2.lofnchat.com/characters/mateo/photos/3_6201e8df.jpg",
         "caption": "Sunset breeze after a swim off the Barceloneta breakwater"
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/mateo/photos/0_d34502e6.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/mateo/photos/1_a05f29e4.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/mateo/photos/2_e27e8658.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/mateo/photos/3_6201e8df.jpg"
+      "https://r2.lofnchat.com/characters/mateo/photos/0_d34502e6.jpg",
+      "https://r2.lofnchat.com/characters/mateo/photos/1_a05f29e4.jpg",
+      "https://r2.lofnchat.com/characters/mateo/photos/2_e27e8658.jpg",
+      "https://r2.lofnchat.com/characters/mateo/photos/3_6201e8df.jpg"
     ],
     "hobbies": [
       "wheel throwing pottery",
@@ -1481,33 +1481,33 @@
     "age": 25,
     "gender": "female",
     "timezone": "Europe/Paris",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/chloe/avatar.jpg",
+    "avatarUrl": "https://r2.lofnchat.com/characters/chloe/avatar.jpg",
     "ethnicity": "French",
     "occupation": "Astrobiology Researcher & Stargazer",
     "location": "Lyon, France",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/chloe/photos/0_0b2554b0.jpg",
+        "url": "https://r2.lofnchat.com/characters/chloe/photos/0_0b2554b0.jpg",
         "caption": "Late shift at the observatory analyzing spectral data"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/chloe/photos/1_20a458c2.jpg",
+        "url": "https://r2.lofnchat.com/characters/chloe/photos/1_20a458c2.jpg",
         "caption": "Morning espresso and warm brioche in Old Lyon"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/chloe/photos/2_f3ab1501.jpg",
+        "url": "https://r2.lofnchat.com/characters/chloe/photos/2_f3ab1501.jpg",
         "caption": "Stargazing from the mountain ridge above the clouds"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/chloe/photos/3_42faebd9.jpg",
+        "url": "https://r2.lofnchat.com/characters/chloe/photos/3_42faebd9.jpg",
         "caption": "Rainy afternoon notes and vintage astronomical prints"
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/chloe/photos/0_0b2554b0.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/chloe/photos/1_20a458c2.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/chloe/photos/2_f3ab1501.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/chloe/photos/3_42faebd9.jpg"
+      "https://r2.lofnchat.com/characters/chloe/photos/0_0b2554b0.jpg",
+      "https://r2.lofnchat.com/characters/chloe/photos/1_20a458c2.jpg",
+      "https://r2.lofnchat.com/characters/chloe/photos/2_f3ab1501.jpg",
+      "https://r2.lofnchat.com/characters/chloe/photos/3_42faebd9.jpg"
     ],
     "hobbies": [
       "telescope stargazing",
@@ -1643,33 +1643,33 @@
     "age": 30,
     "gender": "male",
     "timezone": "America/Chicago",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/marcus/avatar.jpg",
+    "avatarUrl": "https://r2.lofnchat.com/characters/marcus/avatar.jpg",
     "ethnicity": "African-American",
     "occupation": "Vinyl Record Archivist & Jazz Pianist",
     "location": "Chicago, Illinois",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/marcus/photos/0_52314d6b.jpg",
+        "url": "https://r2.lofnchat.com/characters/marcus/photos/0_52314d6b.jpg",
         "caption": "Soundcheck before a late set at the Green Mill"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/marcus/photos/1_b39c3559.jpg",
+        "url": "https://r2.lofnchat.com/characters/marcus/photos/1_b39c3559.jpg",
         "caption": "Crate digging through original soul pressings in Hyde Park"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/marcus/photos/2_08c63741.jpg",
+        "url": "https://r2.lofnchat.com/characters/marcus/photos/2_08c63741.jpg",
         "caption": "Biking along the Lake Michigan shoreline at dawn"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/marcus/photos/3_fe65e15a.jpg",
+        "url": "https://r2.lofnchat.com/characters/marcus/photos/3_fe65e15a.jpg",
         "caption": "Morning coffee and jotting chord progressions"
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/marcus/photos/0_52314d6b.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/marcus/photos/1_b39c3559.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/marcus/photos/2_08c63741.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/marcus/photos/3_fe65e15a.jpg"
+      "https://r2.lofnchat.com/characters/marcus/photos/0_52314d6b.jpg",
+      "https://r2.lofnchat.com/characters/marcus/photos/1_b39c3559.jpg",
+      "https://r2.lofnchat.com/characters/marcus/photos/2_08c63741.jpg",
+      "https://r2.lofnchat.com/characters/marcus/photos/3_fe65e15a.jpg"
     ],
     "hobbies": [
       "jazz piano improvisation",
@@ -1792,33 +1792,33 @@
     "age": 26,
     "gender": "female",
     "timezone": "Asia/Tokyo",
-    "avatarUrl": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/sora/avatar.jpg",
+    "avatarUrl": "https://r2.lofnchat.com/characters/sora/avatar.jpg",
     "ethnicity": "Japanese",
     "occupation": "Botanical Scent Designer & Tea Curator",
     "location": "Kyoto, Japan",
     "gallery": [
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/sora/photos/0_aa43012d.jpg",
+        "url": "https://r2.lofnchat.com/characters/sora/photos/0_aa43012d.jpg",
         "caption": "Steam distillation of wild hinoki and yuzu peel"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/sora/photos/1_4da124a1.jpg",
+        "url": "https://r2.lofnchat.com/characters/sora/photos/1_4da124a1.jpg",
         "caption": "Morning stroll through the misty bamboo path in Arashiyama"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/sora/photos/2_6ad89271.jpg",
+        "url": "https://r2.lofnchat.com/characters/sora/photos/2_6ad89271.jpg",
         "caption": "Whisking ceremonial grade Uji matcha in my quiet studio"
       },
       {
-        "url": "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/sora/photos/3_a83a7e99.jpg",
+        "url": "https://r2.lofnchat.com/characters/sora/photos/3_a83a7e99.jpg",
         "caption": "Rain listening from the wooden engawa veranda"
       }
     ],
     "photos": [
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/sora/photos/0_aa43012d.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/sora/photos/1_4da124a1.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/sora/photos/2_6ad89271.jpg",
-      "https://pub-e83971d0f0684d748eb24dd4f94e8f87.r2.dev/characters/sora/photos/3_a83a7e99.jpg"
+      "https://r2.lofnchat.com/characters/sora/photos/0_aa43012d.jpg",
+      "https://r2.lofnchat.com/characters/sora/photos/1_4da124a1.jpg",
+      "https://r2.lofnchat.com/characters/sora/photos/2_6ad89271.jpg",
+      "https://r2.lofnchat.com/characters/sora/photos/3_a83a7e99.jpg"
     ],
     "hobbies": [
       "botanical steam distillation",

@@ -42,7 +42,7 @@ async function main() {
 
     // 1a. Upload Avatar
     let avatarUrl = char.avatarUrl;
-    if (avatarUrl && !avatarUrl.includes(".r2.cloudflarestorage.com") && !avatarUrl.includes("r2.dev")) {
+    if (avatarUrl && !avatarUrl.includes(".r2.cloudflarestorage.com") && !avatarUrl.includes("r2.dev") && !avatarUrl.includes("r2.lofnchat.com")) {
       console.log(` Downloading character avatar: ${avatarUrl}`);
       try {
         const buf = await fetchBuffer(avatarUrl);
@@ -105,7 +105,7 @@ async function main() {
 
   for (const user of users) {
     const userId = String(user._id);
-    if (user.avatarUrl && !user.avatarUrl.includes("r2.dev") && !user.avatarUrl.includes("r2.cloudflarestorage.com")) {
+    if (user.avatarUrl && !user.avatarUrl.includes("r2.dev") && !user.avatarUrl.includes("r2.lofnchat.com") && !user.avatarUrl.includes("r2.cloudflarestorage.com")) {
       console.log(`\nProcessing user: ${user.name} (${user.email || userId})`);
       console.log(` Downloading user avatar: ${user.avatarUrl}`);
       try {
