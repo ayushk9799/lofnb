@@ -21,7 +21,7 @@ const userSchema = new Schema({
         enum: ["Everyone", "Creative", "Playful", "Warm", "Curious", "Adventurous"],
         default: "Everyone",
     },
-    age: { type: Number, min: 16, max: 120 },
+    age: { type: Number, min: 18, max: 120 },
     minAge: { type: Number, default: 18, min: 18, max: 100 },
     maxAge: { type: Number, default: 60, min: 18, max: 100 },
     timezone: { type: String, maxlength: 100, default: "" },
