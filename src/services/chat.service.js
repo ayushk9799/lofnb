@@ -301,11 +301,13 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             try {
                 const rel = await RelationshipModel.findById(relationshipId).populate("characterId").lean();
                 const charName = rel?.characterId?.name || "Companion";
+                const charAvatar = rel?.characterId?.avatarUrl || "";
                 sendChatPushNotification({
                     userId,
                     characterName: charName,
                     content,
                     relationshipId,
+                    avatarUrl: charAvatar,
                 }).catch(err => console.warn("[Push] Error dispatching push:", err.message));
             } catch (err) {
                 console.warn("[Push] Error checking relationship for push:", err.message);

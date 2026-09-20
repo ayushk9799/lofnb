@@ -40,6 +40,7 @@ async function main() {
         .lean();
 
     const characterName = relationship?.characterId?.name || "Elena Ramos";
+    const characterAvatar = relationship?.characterId?.avatarUrl || "";
     const relationshipId = relationship?._id ? String(relationship._id) : "test-relationship";
 
     const success = await sendChatPushNotification({
@@ -47,6 +48,7 @@ async function main() {
         characterName,
         content: testMessage,
         relationshipId,
+        avatarUrl: characterAvatar,
         extraData: {
             source: "manual_test",
             sentAt: new Date().toISOString(),

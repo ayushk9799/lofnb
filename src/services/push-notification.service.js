@@ -114,6 +114,7 @@ export const sendChatPushNotification = async ({
     characterName,
     content,
     relationshipId,
+    avatarUrl,
     extraData = {},
 }) => {
     try {
@@ -129,6 +130,7 @@ export const sendChatPushNotification = async ({
         const cleanRelationshipId = String(relationshipId || "");
         const title = characterName || "New message";
         const body = (content || "").slice(0, 150);
+        const resolvedAvatarUrl = avatarUrl || extraData?.avatarUrl || extraData?.imageUrl || "";
 
         let badgeCount = 1;
         try {
@@ -138,16 +140,32 @@ export const sendChatPushNotification = async ({
             console.warn("[Push] Error calculating unread badge count:", badgeErr.message);
         }
 
+        // Keep the cross-platform notification payload text-only. Supplying an
+        // imageUrl here also adds it to APNs, where it requires a Notification
+        // Service Extension to download the image. Without that extension iOS
+        // renders an empty/black attachment tile instead of the app icon.
+        // Android receives its image through android.notification below.
+        const notificationPayload = {
+            title,
+            body,
+        };
+
+        const androidNotificationPayload = {
+            sound: "default",
+            channelId: "lofn-chat-messages",
+            icon: "ic_notification",
+            color: "#FF2D62",
+            ...(resolvedAvatarUrl ? { imageUrl: resolvedAvatarUrl } : {}),
+        };
+
         const message = {
             token: user.fcmToken,
-            notification: {
-                title,
-                body,
-            },
+            notification: notificationPayload,
             data: {
                 type: "chat_message",
                 relationshipId: cleanRelationshipId,
                 characterName: title,
+                ...(resolvedAvatarUrl ? { avatarUrl: resolvedAvatarUrl } : {}),
                 ...Object.fromEntries(
                     Object.entries(extraData).map(([k, v]) => [k, String(v)])
                 ),
@@ -166,10 +184,7 @@ export const sendChatPushNotification = async ({
             },
             android: {
                 priority: "high",
-                notification: {
-                    sound: "default",
-                    channelId: "lofn-chat-messages",
-                },
+                notification: androidNotificationPayload,
             },
         };
 

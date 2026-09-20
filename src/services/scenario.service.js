@@ -39,11 +39,13 @@ export async function initiateScenario({relationshipId, userId, llm, userTimezon
     try {
         const rel = await RelationshipModel.findById(relationshipId).populate("characterId").lean();
         const charName = rel?.characterId?.name || "Companion";
+        const charAvatar = rel?.characterId?.avatarUrl || "";
         sendChatPushNotification({
             userId,
             characterName: charName,
             content,
             relationshipId,
+            avatarUrl: charAvatar,
             extraData: { triggerType },
         }).catch(err => console.warn("[Push] Error dispatching scenario push:", err.message));
     } catch (err) {
