@@ -13,7 +13,7 @@ import { upload } from "../middleware/upload.js";
 
 const updateProfileSchema = z.object({
     name: z.string().max(80).optional(),
-    age: z.coerce.number().int().min(16).max(120).optional(),
+    age: z.coerce.number().int().min(18).max(120).optional(),
     interestedIn: z.array(z.enum(["female", "male"])).min(1).max(2).optional(),
     bio: z.string().max(500).optional(),
     avatarUrl: z.string().max(2048).optional(),
@@ -147,7 +147,7 @@ profileRouter.delete("/avatar", async (request, response) => {
     response.json({ data: user.toObject() });
 });
 
-// Delete account: permanently remove user, relationships, messages, memories, jobs, and uploaded avatar
+// Delete account data from active systems, including stored message media.
 profileRouter.delete("/", async (request, response) => {
     const userId = request.auth?.userId;
     if (!userId) {
@@ -160,8 +160,16 @@ profileRouter.delete("/", async (request, response) => {
     const relationships = await RelationshipModel.find({ userId }).select("_id").lean();
     const relIds = relationships.map((r) => r._id);
 
-    // 2. Delete all messages for these relationships
+    // 2. Collect and delete user-associated message media before removing its records.
     if (relIds.length > 0) {
+        const messages = await MessageModel.find({ relationshipId: { $in: relIds } })
+            .select("mediaKey mediaMeta.speechKey")
+            .lean();
+        const mediaKeys = [...new Set(messages.flatMap((message) => [
+            message.mediaKey,
+            message.mediaMeta?.speechKey,
+        ]).filter((key) => typeof key === "string" && key.length > 0))];
+        await Promise.all(mediaKeys.map((key) => request.app.locals.storage.delete(key)));
         await MessageModel.deleteMany({ relationshipId: { $in: relIds } });
         await MemoryJobModel.deleteMany({ relationshipId: { $in: relIds } });
     }
@@ -189,7 +197,7 @@ profileRouter.delete("/", async (request, response) => {
     response.json({
         data: {
             success: true,
-            message: "Account and all associated messages, memories, and data permanently deleted.",
+            message: "Account data was deleted from active Lofn systems. Limited transaction or compliance records may be retained where required by law.",
         },
     });
 });

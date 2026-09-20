@@ -63,7 +63,7 @@ describe("User Profile Endpoints", () => {
                 },
                 body: JSON.stringify({
                     name: "Alex",
-                    age: 16,
+                    age: 18,
                     interestedIn: ["female", "male"],
                     bio: "Exploring the world",
                     vibe: "Creative",
@@ -76,7 +76,7 @@ describe("User Profile Endpoints", () => {
             expect(body.data).toMatchObject({
                 userId: "user-update-1",
                 name: "Alex",
-                age: 16,
+                age: 18,
                 interestedIn: ["female", "male"],
                 bio: "Exploring the world",
                 vibe: "Creative",
@@ -86,7 +86,7 @@ describe("User Profile Endpoints", () => {
 
             const inDb = await UserModel.findOne({ userId: "user-update-1" }).lean();
             expect(inDb.name).toBe("Alex");
-            expect(inDb.age).toBe(16);
+            expect(inDb.age).toBe(18);
             expect(inDb.interestedIn).toEqual(["female", "male"]);
             expect(inDb.vibe).toBe("Creative");
             expect(inDb.minAge).toBe(24);
