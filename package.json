@@ -15,6 +15,8 @@
     "characters:import": "node src/seed.js",
     "test": "vitest run",
     "build": "node scripts/check.js",
+    "build:web": "npm --prefix ../lofn-web run build",
+    "bundle:web": "npm --prefix ../lofn-web run build && node scripts/copy-web.js",
     "db:audit": "node scripts/database.js",
     "db:migrate": "node scripts/database.js --apply",
     "db:clear": "node scripts/clear-data.js",

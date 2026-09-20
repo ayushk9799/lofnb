@@ -80,7 +80,7 @@ describe("Push notification and FCM token management", () => {
         const dummyCharacterId2 = new mongoose.Types.ObjectId();
 
         // 1. New match with 0 messages (uncelebrated/brand new)
-        const rel1 = await RelationshipModel.create({
+        const _rel1 = await RelationshipModel.create({
             userId: testUserId,
             characterId: dummyCharacterId1,
             userLastReadSequence: 0,
