@@ -7,6 +7,7 @@ import { getCompanionAvailability } from "../services/chat-quota.service.js";
 import { initiateScenario } from "../services/scenario.service.js";
 import { requireOwnedRelationship } from "../services/relationship.service.js";
 import { MessageModel } from "../models/message.model.js";
+import { ReportModel } from "../models/report.model.js";
 import { HttpError } from "../utils/http-error.js";
 const optionalPositiveNumber = (max) => z.preprocess((value) => {
     if (value == null || value === "") return undefined;
@@ -137,6 +138,32 @@ export function createChatRouter(dependencies) {
         message.mediaMeta = {...message.mediaMeta?.toObject?.(), speechUrl: stored.url, speechKey: stored.key, speechModel: speech.model};
         await message.save();
         res.status(201).json({data: {...stored, model: speech.model}});
+    });
+    router.post("/report", async (req, res) => {
+        const relationshipId = new Types.ObjectId(requireObjectId(req.params.relationshipId, "relationshipId"));
+        const relationship = await requireOwnedRelationship(relationshipId, req.auth.userId);
+        const reportBody = z.object({
+            messageId: z.string().optional(),
+            reason: z.string().trim().min(1).max(200),
+            details: z.string().trim().max(2000).optional().default(""),
+            contentSnapshot: z.string().trim().max(5000).optional().default(""),
+        }).parse(req.body || {});
+
+        const validMessageId = reportBody.messageId && Types.ObjectId.isValid(reportBody.messageId)
+            ? new Types.ObjectId(reportBody.messageId)
+            : undefined;
+
+        const report = await ReportModel.create({
+            userId: req.auth.userId,
+            relationshipId,
+            characterId: relationship.characterId,
+            messageId: validMessageId,
+            reason: reportBody.reason,
+            details: reportBody.details,
+            contentSnapshot: reportBody.contentSnapshot,
+        });
+
+        res.status(201).json({ data: { id: String(report._id), success: true } });
     });
     return router;
 }

@@ -4,6 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { UserModel } from "../models/user.model.js";
+import { RelationshipModel } from "../models/relationship.model.js";
+import { MessageModel } from "../models/message.model.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -72,6 +74,31 @@ export function initializeFirebase() {
 initializeFirebase();
 
 /**
+ * Calculate total unread assistant messages across all relationships for a user.
+ * Strictly counts messages with sequenceNumber > userLastReadSequence.
+ * Does not count empty/new matches without unread messages.
+ *
+ * @param {string} userId
+ * @returns {Promise<number>}
+ */
+export const getUserUnreadMessageCount = async (userId) => {
+    const relationships = await RelationshipModel.find({ userId })
+        .select("_id userLastReadSequence")
+        .lean();
+    if (!relationships || relationships.length === 0) return 0;
+    const unreadCounts = await Promise.all(
+        relationships.map((rel) =>
+            MessageModel.countDocuments({
+                relationshipId: rel._id,
+                role: "assistant",
+                sequenceNumber: { $gt: rel.userLastReadSequence || 0 },
+            })
+        )
+    );
+    return unreadCounts.reduce((sum, count) => sum + count, 0);
+};
+
+/**
  * Send a chat push notification to a user for a character message.
  *
  * @param {Object} options
@@ -103,6 +130,14 @@ export const sendChatPushNotification = async ({
         const title = characterName || "New message";
         const body = (content || "").slice(0, 150);
 
+        let badgeCount = 1;
+        try {
+            const unreadTotal = await getUserUnreadMessageCount(userId);
+            badgeCount = Math.max(1, unreadTotal);
+        } catch (badgeErr) {
+            console.warn("[Push] Error calculating unread badge count:", badgeErr.message);
+        }
+
         const message = {
             token: user.fcmToken,
             notification: {
@@ -125,7 +160,7 @@ export const sendChatPushNotification = async ({
                 payload: {
                     aps: {
                         sound: "default",
-                        badge: 1,
+                        badge: badgeCount,
                     },
                 },
             },
