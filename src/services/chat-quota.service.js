@@ -55,16 +55,27 @@ async function syncPremiumFromRevenueCat(user, env) {
     const service = new CurrencyService(env);
     if (!service.isConfigured()) return user;
     try {
-        const live = await service.hasActiveEntitlement(
+        const live = await service.getActiveEntitlement(
             revenueCatCustomerId(user),
             env?.REVENUECAT_ENTITLEMENT_ID || "premium",
         );
-        if (!live) return user;
+        if (!live.isActive) return user;
         const premiumEntitlement = env?.REVENUECAT_ENTITLEMENT_ID || "premium";
-        await UserModel.updateOne({ userId: user.userId }, {
-            $set: { isPremium: true, premiumEntitlement },
-        });
-        return { ...user, isPremium: true, premiumEntitlement };
+        const update = {
+            $set: {
+                isPremium: true,
+                premiumEntitlement,
+                ...(live.expiresAt ? { premiumExpiresAt: live.expiresAt } : {}),
+            },
+            ...(live.expiresAt ? {} : { $unset: { premiumExpiresAt: 1 } }),
+        };
+        await UserModel.updateOne({ userId: user.userId }, update);
+        return {
+            ...user,
+            isPremium: true,
+            premiumEntitlement,
+            premiumExpiresAt: live.expiresAt || undefined,
+        };
     } catch {
         return user;
     }

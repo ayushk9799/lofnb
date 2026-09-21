@@ -54,11 +54,11 @@ export class CurrencyService {
      * narrow fallback immediately after purchase, before the webhook has had
      * time to update the local user record.
      */
-    async hasActiveEntitlement(appUserId, entitlementId) {
+    async getActiveEntitlement(appUserId, entitlementId) {
         if (!this.isConfigured()) {
             throw new HttpError(500, "RevenueCat is not configured on server.");
         }
-        if (!appUserId || !entitlementId) return false;
+        if (!appUserId || !entitlementId) return { isActive: false, expiresAt: null };
 
         const url = `${REVENUECAT_V1_API_BASE}/subscribers/${encodeURIComponent(appUserId)}`;
         const res = await fetch(url, {
@@ -68,7 +68,7 @@ export class CurrencyService {
             },
         });
 
-        if (res.status === 404) return false;
+        if (res.status === 404) return { isActive: false, expiresAt: null };
         if (!res.ok) {
             const errorText = await res.text().catch(() => "");
             console.warn(`[CurrencyService] Error checking entitlement for ${appUserId}:`, res.status, errorText);
@@ -77,12 +77,20 @@ export class CurrencyService {
 
         const data = await res.json();
         const entitlement = data?.subscriber?.entitlements?.[entitlementId];
-        if (!entitlement) return false;
+        if (!entitlement) return { isActive: false, expiresAt: null };
 
         // A null expiry represents a lifetime entitlement.
-        if (!entitlement.expires_date) return true;
+        if (!entitlement.expires_date) return { isActive: true, expiresAt: null };
         const expiresAt = Date.parse(entitlement.expires_date);
-        return Number.isFinite(expiresAt) && expiresAt > Date.now();
+        return {
+            isActive: Number.isFinite(expiresAt) && expiresAt > Date.now(),
+            expiresAt: Number.isFinite(expiresAt) ? new Date(expiresAt) : null,
+        };
+    }
+
+    async hasActiveEntitlement(appUserId, entitlementId) {
+        const entitlement = await this.getActiveEntitlement(appUserId, entitlementId);
+        return entitlement.isActive;
     }
 
     /**

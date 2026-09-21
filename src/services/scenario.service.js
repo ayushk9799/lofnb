@@ -46,7 +46,7 @@ export async function initiateScenario({relationshipId, userId, llm, userTimezon
             content,
             relationshipId,
             avatarUrl: charAvatar,
-            extraData: { triggerType },
+            extraData: { triggerType, sequenceNumber: saved.sequenceNumber },
         }).catch(err => console.warn("[Push] Error dispatching scenario push:", err.message));
     } catch (err) {
         console.warn("[Push] Error checking relationship for scenario push:", err.message);

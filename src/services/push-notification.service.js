@@ -99,6 +99,85 @@ export const getUserUnreadMessageCount = async (userId) => {
 };
 
 /**
+ * Pure helper to construct the FCM push notification payload.
+ */
+export const buildChatPushMessage = ({
+    token,
+    characterName,
+    content,
+    relationshipId,
+    avatarUrl,
+    extraData = {},
+    badgeCount = 1,
+}) => {
+    const cleanRelationshipId = String(relationshipId || "");
+    const title = characterName || "New message";
+
+    let body = (content || "").slice(0, 150);
+    if (!body) {
+        if (extraData?.mediaType === "image" || extraData?.hasPhoto) {
+            body = "📷 Sent you a photo";
+        } else if (extraData?.mediaType === "audio" || extraData?.hasVoice) {
+            body = "🎙️ Sent you a voice note";
+        } else {
+            body = "Sent you a message";
+        }
+    }
+
+    const resolvedAvatarUrl = avatarUrl || extraData?.avatarUrl || extraData?.imageUrl || "";
+
+    const notificationPayload = {
+        title,
+        body,
+    };
+
+    const androidNotificationPayload = {
+        sound: "default",
+        channelId: "lofn-chat-messages",
+        icon: "ic_notification",
+        color: "#FF2D62",
+        ...(resolvedAvatarUrl ? { imageUrl: resolvedAvatarUrl } : {}),
+    };
+
+    return {
+        token,
+        notification: notificationPayload,
+        data: {
+            type: "chat_message",
+            relationshipId: cleanRelationshipId,
+            characterName: title,
+            content: body,
+            sequenceNumber: String(extraData?.sequenceNumber || ""),
+            ...(resolvedAvatarUrl ? { avatarUrl: resolvedAvatarUrl } : {}),
+            ...Object.fromEntries(
+                Object.entries(extraData).map(([k, v]) => [k, String(v)])
+            ),
+            timestamp: new Date().toISOString(),
+        },
+        apns: {
+            headers: {
+                "apns-priority": "10",
+                "apns-push-type": "alert",
+            },
+            payload: {
+                aps: {
+                    alert: {
+                        title,
+                        body,
+                    },
+                    sound: "default",
+                    badge: badgeCount,
+                },
+            },
+        },
+        android: {
+            priority: "high",
+            notification: androidNotificationPayload,
+        },
+    };
+};
+
+/**
  * Send a chat push notification to a user for a character message.
  *
  * @param {Object} options
@@ -127,11 +206,6 @@ export const sendChatPushNotification = async ({
             return false;
         }
 
-        const cleanRelationshipId = String(relationshipId || "");
-        const title = characterName || "New message";
-        const body = (content || "").slice(0, 150);
-        const resolvedAvatarUrl = avatarUrl || extraData?.avatarUrl || extraData?.imageUrl || "";
-
         let badgeCount = 1;
         try {
             const unreadTotal = await getUserUnreadMessageCount(userId);
@@ -140,58 +214,15 @@ export const sendChatPushNotification = async ({
             console.warn("[Push] Error calculating unread badge count:", badgeErr.message);
         }
 
-        // Keep the cross-platform notification payload text-only. Supplying an
-        // imageUrl here also adds it to APNs, where it requires a Notification
-        // Service Extension to download the image. Without that extension iOS
-        // renders an empty/black attachment tile instead of the app icon.
-        // Android receives its image through android.notification below.
-        const notificationPayload = {
-            title,
-            body,
-        };
-
-        const androidNotificationPayload = {
-            sound: "default",
-            channelId: "lofn-chat-messages",
-            icon: "ic_notification",
-            color: "#FF2D62",
-            ...(resolvedAvatarUrl ? { imageUrl: resolvedAvatarUrl } : {}),
-        };
-
-        const message = {
+        const message = buildChatPushMessage({
             token: user.fcmToken,
-            notification: notificationPayload,
-            data: {
-                type: "chat_message",
-                relationshipId: cleanRelationshipId,
-                characterName: title,
-                ...(resolvedAvatarUrl ? { avatarUrl: resolvedAvatarUrl } : {}),
-                ...Object.fromEntries(
-                    Object.entries(extraData).map(([k, v]) => [k, String(v)])
-                ),
-                timestamp: new Date().toISOString(),
-            },
-            apns: {
-                headers: {
-                    "apns-priority": "10",
-                    "apns-push-type": "alert",
-                },
-                payload: {
-                    aps: {
-                        alert: {
-                            title,
-                            body,
-                        },
-                        sound: "default",
-                        badge: badgeCount,
-                    },
-                },
-            },
-            android: {
-                priority: "high",
-                notification: androidNotificationPayload,
-            },
-        };
+            characterName,
+            content,
+            relationshipId,
+            avatarUrl,
+            extraData,
+            badgeCount,
+        });
 
         const messaging = getMessaging();
         await messaging.send(message);

@@ -48,11 +48,6 @@ export function createChatRouter(dependencies) {
         const controller = new AbortController();
         let opened = false;
         let partial = false;
-        let clientDisconnected = false;
-        const close = () => {
-            clientDisconnected = true;
-        };
-        res.on("close", close);
         const emit = (event, data) => {
             if (res.destroyed || res.writableEnded) return;
             if (!opened) {
@@ -76,7 +71,6 @@ export function createChatRouter(dependencies) {
                 body,
                 signal: controller.signal,
                 emit,
-                isClientDisconnected: () => clientDisconnected,
             });
             if (!res.writableEnded && !res.destroyed) res.end();
         } catch (error) {
@@ -84,7 +78,7 @@ export function createChatRouter(dependencies) {
             if (!opened && !res.writableEnded && !res.destroyed) return next(error);
             emit("error", {code: "GENERATION_FAILED", message: partial ? "The reply was interrupted. Your partial reply was kept." : "Unable to generate a reply. You can retry.", partial});
             if (!res.writableEnded && !res.destroyed) res.end();
-        } finally { res.off("close", close); }
+        }
     });
     router.post("/initiate", async (req, res) => {
         const relationshipId = new Types.ObjectId(requireObjectId(req.params.relationshipId, "relationshipId"));

@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, beforeEach, afterEach, expect, it } from "vitest";
+import { beforeAll, afterAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import { createServer } from "node:http";
@@ -231,6 +231,51 @@ it("lets Gold members keep chatting after the free cap", async () => {
     await seedUserMessages(10);
     await reply({ body: { clientMessageId: "gold-11" } });
     expect(await MessageModel.countDocuments({ relationshipId: relationship._id, role: "user" })).toBe(11);
+});
+
+it("reactivates Gold from RevenueCat even when the database has an old expired date", async () => {
+    await UserModel.create({
+        userId: "alice",
+        revenueCatAppUserId: "rc-alice",
+        isPremium: true,
+        premiumExpiresAt: new Date("2025-01-01T00:00:00.000Z"),
+    });
+    await seedUserMessages(10);
+
+    const previousFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+            subscriber: {
+                entitlements: {
+                    premium: { expires_date: "2099-01-01T00:00:00.000Z" },
+                },
+            },
+        }),
+    });
+
+    try {
+        await reply({
+            env: {
+                ...env,
+                REVENUECAT_PROJECT_ID: "project-test",
+                REVENUECAT_SECRET_KEY: "secret-test",
+                REVENUECAT_ENTITLEMENT_ID: "premium",
+            },
+            body: { clientMessageId: "gold-reactivated-11" },
+        });
+    } finally {
+        global.fetch = previousFetch;
+    }
+
+    expect(await MessageModel.countDocuments({
+        relationshipId: relationship._id,
+        role: "user",
+    })).toBe(11);
+    const user = await UserModel.findOne({ userId: "alice" }).lean();
+    expect(user.isPremium).toBe(true);
+    expect(user.premiumExpiresAt.toISOString()).toBe("2099-01-01T00:00:00.000Z");
 });
 
 it("allows retrying an already-saved turn while the companion is offline", async () => {
