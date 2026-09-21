@@ -127,21 +127,25 @@ export function createCurrencyRouter({ env }) {
 
         let isPremium = Boolean(user.isPremium);
         const premiumExpected = request.body?.premiumExpected === true;
+        let isFallbackBaseReward = false;
         if (!isPremium && premiumExpected) {
-            isPremium = await currencyService.hasActiveEntitlement(
-                revenueCatCustomerId(user, userId),
-                env?.REVENUECAT_ENTITLEMENT_ID || "premium"
-            );
-            if (!isPremium) {
-                throw new HttpError(
-                    409,
-                    "Your premium membership is still syncing. Please try again shortly.",
-                    "PREMIUM_STATUS_PENDING"
+            try {
+                const hasEntitlement = await currencyService.hasActiveEntitlement(
+                    revenueCatCustomerId(user, userId),
+                    env?.REVENUECAT_ENTITLEMENT_ID || "premium"
                 );
+                if (hasEntitlement) {
+                    isPremium = true;
+                    // Keep the local fallback in sync when the webhook is delayed.
+                    user.isPremium = true;
+                    user.premiumEntitlement = env?.REVENUECAT_ENTITLEMENT_ID || "premium";
+                } else {
+                    isFallbackBaseReward = true;
+                }
+            } catch (err) {
+                console.warn("[CurrencyRoutes] Entitlement verification failed, awarding base hearts fallback:", err?.message);
+                isFallbackBaseReward = true;
             }
-            // Keep the local fallback in sync when the webhook is delayed.
-            user.isPremium = true;
-            user.premiumEntitlement = env?.REVENUECAT_ENTITLEMENT_ID || "premium";
         }
         const amount = isPremium ? 30 : 10;
         const defaultIdempotencyKey = dailyCooldownSeconds === 0
@@ -169,6 +173,7 @@ export function createCurrencyRouter({ env }) {
             remainingGems: result.balance,
             nextClaimAvailableAt,
             cooldownSeconds: dailyCooldownSeconds,
+            isFallbackBaseReward,
         };
 
         return response.json({
