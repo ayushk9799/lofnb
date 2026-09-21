@@ -72,7 +72,7 @@ export class CurrencyService {
         if (!res.ok) {
             const errorText = await res.text().catch(() => "");
             console.warn(`[CurrencyService] Error checking entitlement for ${appUserId}:`, res.status, errorText);
-            throw new HttpError(503, "Unable to verify premium status with RevenueCat.", "PREMIUM_VERIFICATION_FAILED");
+            throw new HttpError(503, "Unable to verify subscription status.", "PREMIUM_VERIFICATION_FAILED");
         }
 
         const data = await res.json();
