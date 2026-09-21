@@ -103,7 +103,7 @@ function toolFollowUpMessages(toolCalls = [], { canSendPhoto = true, canSendVoic
     ];
 }
 
-export async function generateReply({relationshipId, userId, body, env, llm, visionLlm, mediaProvider, storage, embeddingProvider, signal, emit}) {
+export async function generateReply({relationshipId, userId, body, env, llm, visionLlm, mediaProvider, storage, embeddingProvider, signal, emit, isClientDisconnected}) {
     if (!llm) throw new HttpError(503, "The LLM provider is not configured", "LLM_NOT_CONFIGURED");
     return withChatLease(relationshipId, userId, async timeout => {
         const generationSignal = AbortSignal.any([timeout, signal]);
@@ -297,20 +297,24 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             await enqueueMemory(assistant).catch(() => console.warn("Memory scheduling deferred to recovery"));
             emit("done", {status: "completed"});
 
-            // Dispatch push notification for completed reply
-            try {
-                const rel = await RelationshipModel.findById(relationshipId).populate("characterId").lean();
-                const charName = rel?.characterId?.name || "Companion";
-                const charAvatar = rel?.characterId?.avatarUrl || "";
-                sendChatPushNotification({
-                    userId,
-                    characterName: charName,
-                    content,
-                    relationshipId,
-                    avatarUrl: charAvatar,
-                }).catch(err => console.warn("[Push] Error dispatching push:", err.message));
-            } catch (err) {
-                console.warn("[Push] Error checking relationship for push:", err.message);
+            // Dispatch push notification for completed reply only if the client disconnected
+            // (e.g. user closed the app or navigated away before generation finished).
+            // If the client is still connected, the reply was delivered directly to their chat screen in real-time.
+            if (isClientDisconnected?.()) {
+                try {
+                    const rel = await RelationshipModel.findById(relationshipId).populate("characterId").lean();
+                    const charName = rel?.characterId?.name || "Companion";
+                    const charAvatar = rel?.characterId?.avatarUrl || "";
+                    sendChatPushNotification({
+                        userId,
+                        characterName: charName,
+                        content,
+                        relationshipId,
+                        avatarUrl: charAvatar,
+                    }).catch(err => console.warn("[Push] Error dispatching push:", err.message));
+                } catch (err) {
+                    console.warn("[Push] Error checking relationship for push:", err.message);
+                }
             }
         } catch (error) {
             await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: {
