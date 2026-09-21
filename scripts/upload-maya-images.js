@@ -29,21 +29,30 @@ async function main() {
     },
   });
 
-  console.log("Reading images from Downloads...");
-  const buf1 = await readFile(IMAGE_1_PATH);
-  const buf2 = await readFile(IMAGE_2_PATH);
-  const buf3 = await readFile(IMAGE_3_PATH);
-  console.log(`- 1_Maya.png: ${buf1.length} bytes`);
-  console.log(`- 2_Maya.png: ${buf2.length} bytes`);
-  console.log(`- 3_Maya.png: ${buf3.length} bytes`);
+  console.log("Reading images (preferring optimized if available)...");
+  let buf1, buf2, buf3;
+  try {
+    buf1 = await readFile("/tmp/1_Maya_opt.jpg");
+    buf2 = await readFile("/tmp/2_Maya_opt.jpg");
+    buf3 = await readFile("/tmp/3_Maya_opt.jpg");
+    console.log("Using optimized JPEG images from /tmp/*Maya_opt.jpg");
+  } catch (_) {
+    buf1 = await readFile(IMAGE_1_PATH);
+    buf2 = await readFile(IMAGE_2_PATH);
+    buf3 = await readFile(IMAGE_3_PATH);
+  }
+  console.log(`- Image 1: ${buf1.length} bytes`);
+  console.log(`- Image 2: ${buf2.length} bytes`);
+  console.log(`- Image 3: ${buf3.length} bytes`);
 
-  async function upload(key, buffer, contentType = "image/png") {
+  async function upload(key, buffer, contentType = "image/jpeg") {
     console.log(` Uploading ${key} (${buffer.length} bytes)...`);
     await s3.send(new PutObjectCommand({
       Bucket: env.R2_BUCKET_NAME,
       Key: key,
       Body: buffer,
       ContentType: contentType,
+      CacheControl: "public, max-age=31536000, immutable",
     }));
     const publicUrl = `${env.R2_PUBLIC_URL.replace(/\/$/, "")}/${key}`;
     console.log(` -> Done: ${publicUrl}`);

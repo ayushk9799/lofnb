@@ -66,6 +66,7 @@ export class StorageService {
                     Key: key,
                     Body: buffer,
                     ContentType: mimeType,
+                    CacheControl: "public, max-age=31536000, immutable",
                 }));
                 let url;
                 if (this.env.R2_PUBLIC_URL) {
