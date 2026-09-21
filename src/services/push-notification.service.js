@@ -174,9 +174,14 @@ export const sendChatPushNotification = async ({
             apns: {
                 headers: {
                     "apns-priority": "10",
+                    "apns-push-type": "alert",
                 },
                 payload: {
                     aps: {
+                        alert: {
+                            title,
+                            body,
+                        },
                         sound: "default",
                         badge: badgeCount,
                     },
