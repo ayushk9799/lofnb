@@ -33,6 +33,15 @@ it("treats short pushes as photo follow-ups", () => {
   expect(replyRefusesPhoto("still no. i'm not sending a personal photo.")).toBe(true);
 });
 
+it("identifies asks for selfies including 'give your selfie'", () => {
+  expect(userAskedForPhoto("give your selfie")).toBe(true);
+  expect(userAskedForPhoto("give me a selfie")).toBe(true);
+  expect(userAskedForPhoto("selfie please")).toBe(true);
+  expect(userAskedForPhoto("dikhao na")).toBe(true);
+  expect(userAskedForPhoto("bhejo na")).toBe(true);
+  expect(userAskedForPhoto("give pic")).toBe(true);
+});
+
 it("returns no intent when the model did not tag a photo", () => {
   expect(extractPhotoIntent("just at the shop.").intent).toBeNull();
 });

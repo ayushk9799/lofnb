@@ -13,11 +13,9 @@ function migrateUrl(url) {
 }
 
 async function migrate() {
-  console.log("=== Lofn: Migrating Cloudflare R2 URLs to r2.lofnchat.com ===");
-  console.log(`Target Domain: ${TARGET_CDN_URL}`);
+ 
 
   await connectDatabase(env.MONGODB_URI);
-  console.log("Connected to MongoDB");
 
   try {
     // 1. Migrate Characters
@@ -29,7 +27,6 @@ async function migrate() {
       ],
     });
 
-    console.log(`Found ${characters.length} character(s) with legacy r2.dev URLs.`);
 
     let migratedCharacters = 0;
     for (const char of characters) {
@@ -68,14 +65,12 @@ async function migrate() {
         migratedCharacters++;
       }
     }
-    console.log(` Successfully migrated ${migratedCharacters} character document(s).`);
 
     // 2. Migrate Users
     const users = await UserModel.find({
       avatarUrl: { $regex: "r2\\.dev" },
     });
 
-    console.log(`Found ${users.length} user(s) with legacy r2.dev URLs.`);
 
     let migratedUsers = 0;
     for (const user of users) {
@@ -85,7 +80,6 @@ async function migrate() {
         migratedUsers++;
       }
     }
-    console.log(` Successfully migrated ${migratedUsers} user document(s).`);
 
     // 3. Migrate Messages (mediaUrl / mediaMeta.speechUrl)
     const messages = await MessageModel.find({
@@ -95,7 +89,6 @@ async function migrate() {
       ],
     });
 
-    console.log(`Found ${messages.length} message(s) with legacy r2.dev URLs.`);
 
     let migratedMessages = 0;
     for (const msg of messages) {
@@ -113,12 +106,9 @@ async function migrate() {
         migratedMessages++;
       }
     }
-    console.log(` Successfully migrated ${migratedMessages} message document(s).`);
 
-    console.log("\n=== Migration Completed Successfully ===");
   } finally {
     await disconnectDatabase();
-    console.log("Disconnected from MongoDB");
   }
 }
 

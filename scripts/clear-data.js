@@ -23,13 +23,7 @@ try {
         UserModel.deleteMany(mockFilter),
     ]);
 
-    console.log("Database cleanup successful:");
-    console.log(`- Memories removed: ${deletedMemories.deletedCount}`);
-    console.log(`- Messages removed: ${deletedMessages.deletedCount}`);
-    console.log(`- Relationships removed: ${deletedRelationships.deletedCount}`);
-    console.log(`- Memory jobs removed: ${deletedJobs.deletedCount}`);
-    console.log(`- Mock users removed: ${deletedUsers.deletedCount}`);
-    console.log("Character definitions preserved.");
+  
 } finally {
     await disconnectDatabase();
 }

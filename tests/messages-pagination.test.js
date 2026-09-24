@@ -97,3 +97,17 @@ it("GET /messages?after=&before= returns 400", async () => {
     const body = await response.json();
     expect(body.error.code).toBe("VALIDATION_ERROR");
 });
+
+it("returns the same ordered bubbles when fetching history or incremental updates", async () => {
+    const message = await MessageModel.findOne({relationshipId: relationship._id, sequenceNumber: 9});
+    const bubbles = [{id: `${message._id}:0`, kind: "text", text: "hello"}, {id: `${message._id}:1`, kind: "text", text: "a second thought"}];
+    message.content = "hello\n\na second thought";
+    message.bubbles = bubbles;
+    await message.save();
+    for (const query of ["?after=8", "?before=10&limit=1"]) {
+        const response = await fetch(messagesUrl(query), {headers: {"x-user-id": "test-user"}});
+        const body = await response.json();
+        expect(body.data[0].bubbles).toEqual(bubbles);
+        expect(body.data[0].content).toBe(message.content);
+    }
+});

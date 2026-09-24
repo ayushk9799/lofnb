@@ -8,6 +8,7 @@
     },
     { "type": "filter", "path": "relationshipId" },
     { "type": "filter", "path": "userId" },
-    { "type": "filter", "path": "status" }
+    { "type": "filter", "path": "status" },
+    { "type": "filter", "path": "embeddingModel" }
   ]
 }

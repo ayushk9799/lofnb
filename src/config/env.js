@@ -28,12 +28,19 @@ const schema = z.object({
   AUDIO_MODEL: optionalString,
   SPEECH_MODEL: optionalString,
   IMAGE_GENERATION_MODEL: optionalString,
+  ENABLE_IMAGE_GENERATION: z
+    .preprocess((val) => {
+      if (val === "true" || val === true || val === "1") return true;
+      if (val === "false" || val === false || val === "0") return false;
+      return undefined;
+    }, z.boolean().optional()),
   SPEECH_VOICE: optionalString,
   MEMORY_VECTOR_SEARCH_ENABLED: z
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
   MEMORY_VECTOR_INDEX: z.string().default("memory_vector_index"),
+  MEMORY_VECTOR_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.6),
   EMBEDDING_BASE_URL: optionalUrl,
   EMBEDDING_API_KEY: optionalString,
   EMBEDDING_MODEL: optionalString,
@@ -94,6 +101,8 @@ export function loadEnvironment(source = process.env) {
   const defaultEmbeddingBaseUrl = isOpenRouter
     ? "https://openrouter.ai/api/v1"
     : "https://api.openai.com/v1";
+  const embeddingUsesOpenRouter = String(source.EMBEDDING_BASE_URL || defaultEmbeddingBaseUrl).includes("openrouter.ai");
+  const embeddingModel = source.EMBEDDING_MODEL || (effectiveEmbeddingKey ? "text-embedding-3-small" : undefined);
   const minutesFromHours = (() => {
     const hours = Number(source.COMPANION_OFFLINE_HOURS);
     return Number.isFinite(hours) && hours > 0 ? hours * 60 : undefined;
@@ -157,8 +166,8 @@ export function loadEnvironment(source = process.env) {
       source.EMBEDDING_BASE_URL ||
       (effectiveEmbeddingKey ? defaultEmbeddingBaseUrl : undefined),
     EMBEDDING_MODEL:
-      source.EMBEDDING_MODEL ||
-      (effectiveEmbeddingKey ? "text-embedding-3-small" : undefined),
+      embeddingUsesOpenRouter && /^text-embedding-/.test(embeddingModel || "")
+        ? `openai/${embeddingModel}` : embeddingModel,
   };
   const result = schema.safeParse(normalized);
   if (!result.success) {

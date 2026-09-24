@@ -4,8 +4,9 @@ import { MessageModel } from "../models/message.model.js";
 import { MemoryJobModel } from "../models/memory-job.model.js";
 import { requireOwnedRelationship } from "./relationship.service.js";
 import { allocateMessageSequence } from "./sequence.service.js";
-import { assembleContext } from "./context.service.js";
-import { attachCompanionPhoto, canAffordPhoto, countPriorPhotoRefusals, extractPhotoIntent } from "./companion-photo.service.js";
+import { assembleContext, ensureProfileMemory } from "./context.service.js";
+import { attachCompanionPhoto, canAffordPhoto, extractPhotoIntent } from "./companion-photo.service.js";
+import { createReplyBubbles, replyEnvelope } from "./reply-bubbles.service.js";
 import { attachCompanionVoice, canAffordVoice, extractVoiceIntent } from "./companion-voice.service.js";
 import { resolveCompanionMedia } from "./companion-media.service.js";
 import { intentsFromToolCalls, toolsForCompanionTurn } from "./companion-tools.js";
@@ -174,7 +175,14 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
         if (assistant && ["completed", "partial"].includes(assistant.status)) {
             emit("seen", { userMessageId: user._id, userSequence: user.sequenceNumber, seenAt: seenAt.toISOString() });
             emit("message", {id: assistant._id, userId: user._id, userSequence: user.sequenceNumber, sequenceNumber: assistant.sequenceNumber});
-            emit("delta", {content: assistant.content});
+            const bubbles = assistant.bubbles?.length ? assistant.bubbles : createReplyBubbles(assistant.content, assistant._id);
+            for (let i = 0; i < bubbles.length; i++) {
+                const b = bubbles[i];
+                emit("bubble_start", { bubbleIndex: i, id: b.id });
+                emit("delta", { content: b.text, bubbleIndex: i });
+                emit("bubble_end", { bubbleIndex: i, id: b.id, text: b.text });
+            }
+            emit("reply", replyEnvelope(assistant));
             emit("done", {cached: true, status: assistant.status});
             return;
         }
@@ -182,6 +190,7 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
         if (assistant) {
             assistant.status = "streaming";
             assistant.content = "";
+            assistant.bubbles = undefined;
             await assistant.save();
         } else assistant = await MessageModel.create({
             relationshipId, sequenceNumber: await allocateMessageSequence(relationshipId, userId),
@@ -189,14 +198,17 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             generation: {provider: selectedLlm.name, model: selectedLlm.model},
         });
         let content = "";
+        let rawContent = "";
         const startedAt = Date.now();
         let lastPersisted = startedAt;
         try {
             generationSignal.throwIfAborted();
+            await ensureProfileMemory({ relationshipId, userId, llm, signal: generationSignal });
             const context = await assembleContext({relationshipId, userId,
                 currentSequence: user.sequenceNumber, currentMessage, currentMedia,
                 embeddingProvider, vectorEnabled: env.MEMORY_VECTOR_SEARCH_ENABLED,
                 vectorIndexName: env.MEMORY_VECTOR_INDEX, userTimezone: body.timezone, signal: generationSignal,
+                vectorMinScore: env.MEMORY_VECTOR_MIN_SCORE,
             });
             generationSignal.throwIfAborted();
             emit("seen", { userMessageId: user._id, userSequence: user.sequenceNumber, seenAt: seenAt.toISOString() });
@@ -204,10 +216,8 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             let toolCalls = [];
             const canSendPhoto = canAffordPhoto(body.clientGems);
             const canSendVoice = canAffordVoice(body.clientGems);
-            const priorPhotoRefusals = await countPriorPhotoRefusals(relationshipId, user.sequenceNumber);
             const mediaTurn = toolsForCompanionTurn(currentMessage, {
                 model: selectedLlm.model,
-                priorPhotoRefusals,
                 canSendPhoto,
                 canSendVoice,
             });
@@ -220,11 +230,10 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
                     }
                     const text = typeof chunk === "string" ? chunk : "";
                     if (!text) continue;
-                    content += text;
-                    if (content.length > 100_000) throw new Error("Reply is too long");
-                    emit("delta", {content: text});
+                    rawContent += text;
+                    if (rawContent.length > 100_000) throw new Error("Reply is too long");
                     if (Date.now() - lastPersisted > 1000) {
-                        await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: {content}});
+                        await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: {content: rawContent}});
                         lastPersisted = Date.now();
                     }
                 }
@@ -235,7 +244,7 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
                 toolChoice: mediaTurn.toolChoice,
                 signal: generationSignal,
             }));
-            if (!content.trim() && toolCalls.length) {
+            if (!rawContent.trim() && toolCalls.length) {
                 await consume(selectedLlm.streamChat({
                     messages: [...context.messages, ...toolFollowUpMessages(toolCalls, { canSendPhoto, canSendVoice })],
                     signal: generationSignal,
@@ -243,8 +252,10 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             }
             generationSignal.throwIfAborted();
             const fromTools = intentsFromToolCalls(toolCalls);
-            const taggedPhoto = extractPhotoIntent(content);
-            content = extractVoiceIntent(taggedPhoto.content).content;
+            const taggedPhoto = extractPhotoIntent(rawContent);
+            content = extractVoiceIntent(taggedPhoto.content).content
+                .replace(/\s*\[(?:sent|refused) a (?:photo|picture|voice note)\]/gi, "")
+                .trim();
             const resolved = resolveCompanionMedia({
                 toolPhoto: fromTools.photo || taggedPhoto.intent,
                 toolVoice: fromTools.voice,
@@ -269,8 +280,10 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             if (!content.trim() && !voiceIntent && !photoIntent) {
                 throw new Error("The model returned an empty response");
             }
+            const bubbles = createReplyBubbles(content, assistant._id);
             const generationFields = {
                 content, status: "completed", completedAt: new Date(), memoryPending: true,
+                bubbles,
                 "generation.latencyMs": Date.now() - startedAt, "generation.retrievedMemoryIds": context.retrievedMemoryIds,
                 "generation.mediaDecision": resolved.decision,
             };
@@ -280,21 +293,72 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             if (!canSendVoice && resolved.decision === "audio_refused") {
                 generationFields["generation.mediaRefuseReason"] = "insufficient_gems";
             }
+
+            const isTest = process.env.NODE_ENV === "test";
+            const interBubbleDelay = isTest
+                ? 0
+                : (env?.INTER_BUBBLE_DELAY_MS !== undefined ? Number(env.INTER_BUBBLE_DELAY_MS) : 1000);
+            const tickDelay = isTest ? 0 : 20;
+
+            for (let i = 0; i < bubbles.length; i++) {
+                const bubble = bubbles[i];
+                generationSignal.throwIfAborted();
+                emit("bubble_start", { bubbleIndex: i, id: bubble.id });
+
+                if (tickDelay > 0 && bubble.text.length > 20) {
+                    const words = bubble.text.split(" ");
+                    for (let w = 0; w < words.length; w++) {
+                        const wordChunk = (w === 0 ? "" : " ") + words[w];
+                        emit("delta", { content: wordChunk, bubbleIndex: i });
+                        await new Promise(r => setTimeout(r, tickDelay));
+                    }
+                } else {
+                    emit("delta", { content: bubble.text, bubbleIndex: i });
+                }
+
+                emit("bubble_end", { bubbleIndex: i, id: bubble.id, text: bubble.text });
+
+                // If another bubble follows, pause and emit typing indicator without ending the stream
+                if (i < bubbles.length - 1) {
+                    emit("typing", { isTyping: true, nextBubbleIndex: i + 1, delayMs: interBubbleDelay });
+                    if (interBubbleDelay > 0) {
+                        await new Promise(r => setTimeout(r, interBubbleDelay));
+                    }
+                    emit("typing", { isTyping: false, nextBubbleIndex: i + 1 });
+                }
+            }
+
             const saved = await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: generationFields});
             if (!saved.modifiedCount) throw new Error("Reply lease expired");
             if (voiceIntent && !photoIntent) {
-                await attachCompanionVoice({
+                const voiceResult = await attachCompanionVoice({
                     relationshipId, assistantMessage: assistant,
                     replyText: content, intent: voiceIntent, mediaProvider, storage,
                 });
+                if (voiceResult?.url) {
+                    generationFields.mediaUrl = voiceResult.url;
+                    generationFields.mediaType = "audio";
+                    if (voiceResult.key) generationFields.mediaKey = voiceResult.key;
+                }
             } else if (photoIntent) {
-                await attachCompanionPhoto({
+                const photoResult = await attachCompanionPhoto({
                     relationshipId, assistantMessage: assistant, intent: photoIntent, mediaProvider, storage,
-                    skipImageGeneration: env?.NODE_ENV === "development",
+                    skipImageGeneration: env?.ENABLE_IMAGE_GENERATION !== undefined
+                        ? !env.ENABLE_IMAGE_GENERATION
+                        : env?.NODE_ENV === "development",
                 });
+                if (photoResult?.url || photoResult?.mediaUrl) {
+                    generationFields.mediaUrl = photoResult.url || photoResult.mediaUrl;
+                    generationFields.mediaType = photoResult.mediaType || "image";
+                    generationFields.mediaMeta = photoResult.mediaMeta;
+                    if (photoResult.key || photoResult.mediaKey) {
+                        generationFields.mediaKey = photoResult.key || photoResult.mediaKey;
+                    }
+                }
             }
             // The completed message is the durable outbox. A worker recovers a failed enqueue.
             await enqueueMemory(assistant).catch(() => console.warn("Memory scheduling deferred to recovery"));
+            emit("reply", replyEnvelope({_id: assistant._id, ...generationFields}));
             emit("done", {status: "completed"});
 
             // Dispatch push notification for completed reply
@@ -314,8 +378,10 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
                 console.warn("[Push] Error checking relationship for push:", err.message);
             }
         } catch (error) {
+            const partialText = (rawContent || content).slice(0, 100_000);
             await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: {
-                content: content.slice(0, 100_000), status: content ? "partial" : "failed", completedAt: new Date(),
+                content: partialText, status: partialText ? "partial" : "failed", completedAt: new Date(),
+                bubbles: createReplyBubbles(partialText, assistant._id),
             }}).catch(() => console.warn("Interrupted reply will be recovered after lease expiry"));
             throw error;
         }

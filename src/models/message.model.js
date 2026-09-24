@@ -14,6 +14,15 @@ const messageSchema = new Schema({
         immutable: true,
     },
     content: { type: String, default: "", maxlength: 100_000 },
+    bubbles: {
+        type: [new Schema({
+            id: { type: String, required: true },
+            kind: { type: String, enum: ["text"], default: "text" },
+            text: { type: String, required: true, maxlength: 100_000 },
+        }, { _id: false })],
+        default: undefined,
+        validate: value => !value || value.length <= 4,
+    },
     mediaUrl: { type: String, trim: true },
     mediaKey: { type: String, trim: true },
     mediaType: { type: String, enum: ["image", "audio"], default: undefined },

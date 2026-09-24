@@ -107,7 +107,6 @@ async function fetchBuffer(url) {
 }
 
 async function uploadTemplates(storage) {
-  console.log("-> Checking and uploading template portraits to Cloudflare R2...");
   const maleTemplateUrls = [];
   const femaleTemplateUrls = [];
   const galleryTemplateUrls = [];
@@ -119,7 +118,6 @@ async function uploadTemplates(storage) {
     const key = `${folder}/${filename}`;
     const expectedUrl = `${env.R2_PUBLIC_URL.replace(/\/$/, "")}/${key}`;
     try {
-      console.log(`   Uploading male template [${i + 1}/${TEMPLATE_MALE_URLS.length}]: ${key}`);
       const buf = await fetchBuffer(TEMPLATE_MALE_URLS[i]);
       const res = await storage.upload({ buffer: buf, folder, filename });
       maleTemplateUrls.push(res.url);
@@ -136,7 +134,6 @@ async function uploadTemplates(storage) {
     const key = `${folder}/${filename}`;
     const expectedUrl = `${env.R2_PUBLIC_URL.replace(/\/$/, "")}/${key}`;
     try {
-      console.log(`   Uploading female template [${i + 1}/${TEMPLATE_FEMALE_URLS.length}]: ${key}`);
       const buf = await fetchBuffer(TEMPLATE_FEMALE_URLS[i]);
       const res = await storage.upload({ buffer: buf, folder, filename });
       femaleTemplateUrls.push(res.url);
@@ -153,7 +150,6 @@ async function uploadTemplates(storage) {
     const key = `${folder}/${filename}`;
     const expectedUrl = `${env.R2_PUBLIC_URL.replace(/\/$/, "")}/${key}`;
     try {
-      console.log(`   Uploading gallery template [${i + 1}/${TEMPLATE_GALLERY_URLS.length}]: ${key}`);
       const buf = await fetchBuffer(TEMPLATE_GALLERY_URLS[i]);
       const res = await storage.upload({ buffer: buf, folder, filename });
       galleryTemplateUrls.push(res.url);
@@ -285,9 +281,7 @@ function buildCharacterList({ maleTemplateUrls, femaleTemplateUrls, galleryTempl
 }
 
 async function main() {
-  console.log("=== Lofn: Seed 50 Male & 50 Female Simulation Characters ===");
-  console.log("R2 Bucket:", env.R2_BUCKET_NAME);
-  console.log("R2 Public URL:", env.R2_PUBLIC_URL);
+ 
 
   const storage = new StorageService(env);
   if (!storage.isR2Configured()) {
@@ -296,17 +290,13 @@ async function main() {
 
   // 1. Upload Template Images to R2
   const templates = await uploadTemplates(storage);
-  console.log(`-> Verified ${templates.maleTemplateUrls.length} male & ${templates.femaleTemplateUrls.length} female template URLs on R2.`);
 
   // 2. Build Character Specs
   const characterSpecs = buildCharacterList(templates);
-  console.log(`-> Built ${characterSpecs.length} total character specs (50 male, 50 female).`);
 
   // 3. Connect to Database & Upsert
-  console.log("-> Connecting to MongoDB Atlas...");
   await connectDatabase(env.MONGODB_URI);
 
-  console.log("-> Upserting characters into MongoDB...");
   let createdCount = 0;
   let updatedCount = 0;
 
@@ -324,17 +314,13 @@ async function main() {
     }
   }
 
-  console.log(`-> Seeding complete! Created: ${createdCount}, Updated: ${updatedCount}`);
 
   // 4. Verify Database Counts
   const totalCount = await CharacterModel.countDocuments();
   const maleCount = await CharacterModel.countDocuments({ gender: "male" });
   const femaleCount = await CharacterModel.countDocuments({ gender: "female" });
 
-  console.log("\n=== Current Database Summary ===");
-  console.log(`Total Characters: ${totalCount}`);
-  console.log(`Male Characters:  ${maleCount}`);
-  console.log(`Female Characters: ${femaleCount}`);
+ 
 
   // 5. Test Sample Cursor Query
   const firstBatch = await CharacterModel.find({ gender: "female" })
@@ -343,9 +329,6 @@ async function main() {
     .select("name slug age gender avatarUrl")
     .lean();
 
-  console.log(`\nSample First Batch Query (Female, limit=20): loaded ${firstBatch.length} profiles.`);
-  console.log(`First profile: ${firstBatch[0]?.name} (${firstBatch[0]?.slug}) - Avatar: ${firstBatch[0]?.avatarUrl}`);
-  console.log(`Last profile in batch: ${firstBatch.at(-1)?.name} (${firstBatch.at(-1)?.slug}) - Cursor ID: ${firstBatch.at(-1)?._id}`);
 
   // Sample Next Page Seek
   const nextBatch = await CharacterModel.find({
@@ -357,11 +340,8 @@ async function main() {
     .select("name slug age")
     .lean();
 
-  console.log(`Sample Next Batch Query (_id > cursor, limit=20): loaded ${nextBatch.length} profiles.`);
-  console.log(`Next batch first profile: ${nextBatch[0]?.name} (${nextBatch[0]?.slug})`);
-
+ 
   await disconnectDatabase();
-  console.log("\nDone! Database disconnected.");
   process.exit(0);
 }
 

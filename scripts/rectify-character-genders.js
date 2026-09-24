@@ -16,12 +16,10 @@ const GENDER_MAP = {
 };
 
 async function rectifyCharacterGenders() {
-    console.log("[Rectify] Connecting to database...");
     await connectDatabase(env.MONGODB_URI);
 
     try {
         const characters = await CharacterModel.find({}).lean();
-        console.log(`[Rectify] Found ${characters.length} total character records in database.`);
 
         let updatedCount = 0;
         let unchangedCount = 0;
@@ -34,14 +32,12 @@ async function rectifyCharacterGenders() {
                     { _id: char._id },
                     { $set: { gender: targetGender } }
                 );
-                console.log(`  -> Updated "${char.name}" (${char.slug}): gender set to "${targetGender}"`);
                 updatedCount++;
             } else {
                 unchangedCount++;
             }
         }
 
-        console.log(`\n[Rectify] Complete: ${updatedCount} character(s) updated, ${unchangedCount} character(s) already correct.`);
     } finally {
         await disconnectDatabase();
     }

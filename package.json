@@ -19,6 +19,8 @@
     "bundle:web": "npm --prefix ../lofn-web run build && node scripts/copy-web.js",
     "db:audit": "node scripts/database.js",
     "db:migrate": "node scripts/database.js --apply",
+    "memory:audit": "node scripts/memory-maintenance.js",
+    "memory:backfill": "node scripts/memory-maintenance.js --apply --dossiers",
     "db:clear": "node scripts/clear-data.js",
     "lint": "eslint src tests scripts",
     "format": "prettier --write src tests scripts",

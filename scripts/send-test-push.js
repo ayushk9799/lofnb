@@ -12,7 +12,6 @@ const testMessage = process.argv[3] || "Hey! This is a test notification from Lo
 
 async function main() {
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log("[TestPush] Connected to database.");
 
     const user = await UserModel.findOne({
         $or: [
@@ -33,7 +32,6 @@ async function main() {
         process.exit(1);
     }
 
-    console.log(`[TestPush] Sending to user: ${user.name || "User"} <${user.email}> (${user.platform || "unknown device"})`);
 
     const relationship = await RelationshipModel.findOne({ userId: user.userId })
         .populate("characterId")
@@ -56,7 +54,6 @@ async function main() {
     });
 
     if (success) {
-        console.log(`[TestPush] ✅ Successfully sent notification from "${characterName}": "${testMessage}"`);
     } else {
         console.error("[TestPush] ❌ Failed to send push notification.");
     }

@@ -100,9 +100,9 @@ it("does not send tools to MythoMax, which cannot call them", () => {
   });
 });
 
-it("only overrides a later photo refuse, and still offers every tool", () => {
+it("respects refusals after repeated requests, and still offers every tool", () => {
   const turn = toolsForCompanionTurn("I wanna hear your voice", { priorPhotoRefusals: 2 });
-  expect(turn.forceSend).toBe(true);
+  expect(turn.forceSend).toBe(false);
   expect(turn.toolChoice).toBe("required");
   expect(turn.tools.map((tool) => tool.function.name)).toEqual([
     "text",

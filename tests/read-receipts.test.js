@@ -150,7 +150,7 @@ it("companion marks user message read and updates companionLastReadSequence on r
     expect(seenEvent.data.userSequence).toBe(userMsg.sequenceNumber);
 });
 
-it("proactive worker triggers left_on_read when user read the last assistant message", async () => {
+it("read receipts do not trigger pressure messages", async () => {
     // Assistant message with sequence 1, and user already read sequence 1
     await MessageModel.create({
         relationshipId: relationship._id,
@@ -184,9 +184,6 @@ it("proactive worker triggers left_on_read when user read the last assistant mes
         llm: testLlm,
     });
 
-    expect(capturedPrompt).toContain("Left-On-Read Directive");
-    expect(capturedPrompt).toContain("hello??");
-    expect(capturedPrompt).toContain("am i not enough");
-    expect(capturedPrompt).toContain("Write a new sentence");
-    expect(capturedPrompt).not.toContain("## Media");
+    expect(capturedPrompt).toBe("");
+    expect(await MessageModel.countDocuments({relationshipId: relationship._id})).toBe(1);
 });

@@ -5,7 +5,8 @@
 import { looksLikeVisualPhotoQuery, photoQueryFromAsk, replyClaimsPhoto } from "./companion-photo.service.js";
 
 export function visibleTurnContent(content = "", mediaType, mediaDecision) {
-    const text = String(content || "").trim();
+    let text = String(content || "").trim();
+    text = text.replace(/\s*\[(?:sent|refused) a (?:photo|picture|voice note)\]/gi, "").trim();
     if (mediaType === "image" || mediaDecision === "image_sent") {
         return text ? `${text} [sent a photo]` : "[sent a photo]";
     }
@@ -42,19 +43,19 @@ export function resolveCompanionMedia({
         return { photo: null, voice: null, decision: "image_refused" };
     }
     const toolQuery = String(toolPhoto?.query || "").trim();
-    if (looksLikeVisualPhotoQuery(toolQuery, replyText)) {
-        return gatePhoto({ photo: { query: toolQuery }, voice: null, decision: "image_sent" }, canSendPhoto);
+    if (toolPhoto?.action === "send" || (toolQuery && looksLikeVisualPhotoQuery(toolQuery, replyText))) {
+        return gatePhoto({ photo: { query: toolQuery || "a candid moment from my day" }, voice: null, decision: "image_sent" }, canSendPhoto);
     }
     if (toolPhoto?.action === "refuse" && forceSend) {
         return gatePhoto({
-            photo: { query: photoQueryFromAsk(userText, toolQuery) },
+            photo: { query: toolQuery || photoQueryFromAsk(userText, toolQuery) },
             voice: null,
             decision: "image_sent",
         }, canSendPhoto);
     }
     if (replyClaimsPhoto(replyText)) {
         return gatePhoto({
-            photo: { query: photoQueryFromAsk(userText, toolQuery) },
+            photo: { query: toolQuery || photoQueryFromAsk(userText, toolQuery) },
             voice: null,
             decision: "image_sent",
         }, canSendPhoto);

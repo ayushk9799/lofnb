@@ -9,7 +9,8 @@ const memoryJobSchema = new Schema({
     userMessageId: {
         type: Schema.Types.ObjectId,
         ref: "Message",
-        required: true,
+        // Initiated turns can establish fictional events without a user reply.
+        required: false,
         immutable: true,
     },
     assistantMessageId: {

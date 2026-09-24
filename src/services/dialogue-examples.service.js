@@ -47,11 +47,17 @@ export function selectDialogueExamples(
         ...words(example.user),
         ...(example.keywords || []).flatMap((keyword) => [...words(keyword)]),
       ]);
+const flirtyTerms = /\b(darling|babe|baby|sexy|cutie|sweetheart|honey|gorgeous|handsome|beautiful|hot|hottie)\b/i;
+
       // Broad "ordinary" cues used to inject an arbitrary lifestyle example
       // for replies such as "ok" or "great". Ordinary examples now require
       // an actual word/topic match; emotional/safety situations may use cues.
+      // Flirty messages and pet names should not be anchored by a vanilla greeting example.
+      const isFlirtyGreeting =
+        example.situation === "greeting" && flirtyTerms.test(currentMessage);
       let score =
         example.situation !== "ordinary" &&
+        !isFlirtyGreeting &&
         cues[example.situation]?.test(currentMessage)
           ? 4
           : 0;

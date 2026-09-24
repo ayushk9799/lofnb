@@ -20,4 +20,3 @@ if (fs.existsSync(targetDir)) {
 }
 
 fs.cpSync(sourceDir, targetDir, { recursive: true });
-console.log(`Successfully copied web client from ${sourceDir} to ${targetDir}`);

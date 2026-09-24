@@ -17,6 +17,7 @@ import { MessageModel } from "../src/models/message.model.js";
 import { MemoryModel } from "../src/models/memory.model.js";
 import { MemoryJobModel } from "../src/models/memory-job.model.js";
 import { generateReply } from "../src/services/chat.service.js";
+import { initiateScenario } from "../src/services/scenario.service.js";
 import { extractAndStoreMemory } from "../src/services/memory-extraction.service.js";
 import {
   recoverChatWork,
@@ -107,6 +108,68 @@ const extracted = {
   relationshipSummary: "They discussed pets",
   mood: "happy",
 };
+
+it("persists and replays a coherent multi-bubble turn exactly once", async () => {
+  const events = [];
+  const multiLlm = {...llm, async *streamChat() { yield "hey :)\n"; yield "\ni'm making dinner"; yield "\n\nwhat are you up to?"; }};
+  await reply({llm: multiLlm, emit: (event, data) => events.push({event, data})});
+  const saved = await MessageModel.findOne({role: "assistant"}).lean();
+  expect(saved.bubbles.map(b => b.text)).toEqual(["hey :)", "i'm making dinner", "what are you up to?"]);
+  expect(events.find(e => e.event === "reply").data.bubbles).toEqual(saved.bubbles);
+
+  // Verify server-side bubble stream lifecycle
+  const bubbleStarts = events.filter(e => e.event === "bubble_start");
+  const bubbleEnds = events.filter(e => e.event === "bubble_end");
+  expect(bubbleStarts).toHaveLength(3);
+  expect(bubbleEnds).toHaveLength(3);
+  expect(bubbleStarts.map(e => e.data.bubbleIndex)).toEqual([0, 1, 2]);
+  expect(bubbleEnds.map(e => e.data.bubbleIndex)).toEqual([0, 1, 2]);
+
+  // Ensure stream connection was kept open: done event must only appear AFTER the last bubble
+  const doneIndex = events.findIndex(e => e.event === "done");
+  const lastBubbleEndIndex = events.findLastIndex(e => e.event === "bubble_end");
+  expect(doneIndex).toBeGreaterThan(lastBubbleEndIndex);
+  expect(events.filter(e => e.event === "done")).toHaveLength(1);
+
+  const replay = [];
+  await reply({llm: {...llm, streamChat: () => {throw new Error("must not regenerate");}}, emit: (event, data) => replay.push({event, data})});
+  expect(replay.find(e => e.event === "reply").data.bubbles.map(b => b.id)).toEqual(saved.bubbles.map(b => b.id));
+  expect(await MessageModel.countDocuments({role: "assistant"})).toBe(1);
+  expect(await MemoryJobModel.countDocuments()).toBe(1);
+});
+
+it("retains partial bubbles if the stream fails and replays without making up a tail", async () => {
+  await expect(reply({llm: {...llm, async *streamChat() {yield "hey\n\nsecond thought"; throw new Error("stream failed");}}})).rejects.toThrow("stream failed");
+  const saved = await MessageModel.findOne({role: "assistant"}).lean();
+  expect(saved.status).toBe("partial");
+  expect(saved.bubbles.map(b => b.text)).toEqual(["hey", "second thought"]);
+  expect(await MemoryJobModel.countDocuments()).toBe(0);
+  await reply();
+  expect(await MessageModel.countDocuments({role: "assistant"})).toBe(1);
+});
+
+it("extracts initiated character events without inventing a user message", async () => {
+  const saved = await initiateScenario({relationshipId: relationship._id, userId: "alice", triggerType: "opener", llm: {...llm, generateText: async () => "hey :)\n\nI'm making pasta."}});
+  const job = await MemoryJobModel.findOne({assistantMessageId: saved._id});
+  expect(job.userMessageId).toBeUndefined();
+  await extractAndStoreMemory({relationshipId: relationship._id, assistantMessageId: saved._id, llm: {generateJson: async () => ({
+    memories: [{type: "user_fact", key: "user_job", text: "Chef", confidence: 1, importance: 1}], mood: "happy",
+    conversationUpdate: {activeThread: "dinner", assistantEvidence: "I'm making pasta.", familiarity: "familiar", scene: {description: "Making pasta", status: "active", evidence: "I'm making pasta."}},
+  })}});
+  const rel = await RelationshipModel.findById(relationship._id).lean();
+  expect(rel.conversationState.scene.description).toBe("Making pasta");
+  expect(rel.conversationState.familiarity).toBe("unfamiliar");
+  expect(await MemoryModel.countDocuments({type: "user_fact"})).toBe(0);
+  expect(await MessageModel.countDocuments({role: "user"})).toBe(0);
+});
+
+it("does not send a stale initiation after another turn has arrived", async () => {
+  await reply();
+  const generateText = vi.fn();
+  const saved = await initiateScenario({relationshipId: relationship._id, userId: "alice", triggerType: "callback", expectedSequence: -1, llm: {...llm, generateText}});
+  expect(saved).toBeNull();
+  expect(generateText).not.toHaveBeenCalled();
+});
 
 it("serializes concurrent turns, replays retries, and rejects changed content", async () => {
   let release, started;
@@ -1160,4 +1223,117 @@ it("retrieves relevant facts beyond the first six without injecting them into un
     vectorEnabled: false,
   });
   expect(memories).toHaveLength(8);
+});
+
+it("keeps a grounded habit available on greetings, replaces corrections, and forgets it everywhere", async () => {
+  const { assembleContext } = await import("../src/services/context.service.js");
+  const { forgetMemory } = await import("../src/services/forget-memory.service.js");
+  async function extractHabit(content, text, id) {
+    await reply({body: {content, clientMessageId: id}});
+    const assistant = await MessageModel.findOne({role: "assistant"}).sort({sequenceNumber: -1});
+    await extractAndStoreMemory({relationshipId: relationship._id, userMessageId: assistant.replyToMessageId, assistantMessageId: assistant._id,
+      llm: {generateJson: async () => ({mood: "neutral", memories: [{type: "user_fact", key: "user_gaming", text, confidence: 0.95, importance: 0.9, dossierCategory: "habit", evidence: content}]})}});
+  }
+  await extractHabit("I play Valorant until 3am", "Plays Valorant until 3am", "habit-one");
+  let context = await assembleContext({relationshipId: relationship._id, userId: "alice", currentMessage: "hey"});
+  expect(context.messages[0].content).toContain("Personal dossier");
+  expect(context.messages[0].content).toContain("Plays Valorant until 3am");
+  await extractHabit("I quit Valorant", "Quit Valorant", "habit-two");
+  context = await assembleContext({relationshipId: relationship._id, userId: "alice", currentMessage: "hey"});
+  expect(context.messages[0].content).toContain("Quit Valorant");
+  expect(context.messages[0].content).not.toContain("Plays Valorant until 3am");
+  const memory = await MemoryModel.findOne({status: "active", normalizedKey: "user_gaming"});
+  await forgetMemory({relationshipId: relationship._id, userId: "alice", memoryId: memory._id});
+  context = await assembleContext({relationshipId: relationship._id, userId: "alice", currentMessage: "hey"});
+  expect(JSON.stringify(context.messages)).not.toContain("Valorant");
+});
+
+it("includes 50 dated messages in chronological order while respecting the recent token budget", async () => {
+  const { assembleContext } = await import("../src/services/context.service.js");
+  const { estimateTokens } = await import("../src/utils/tokens.js");
+  await MessageModel.insertMany(Array.from({length: 60}, (_, i) => ({relationshipId: relationship._id, sequenceNumber: i + 1, role: i % 2 ? "assistant" : "user", content: `turn number ${i + 1}`, status: "completed", createdAt: new Date("2026-09-23T09:00:00Z")})));
+  const input = {relationshipId: relationship._id, userId: "alice", currentMessage: "hi", userTimezone: "Asia/Kolkata"};
+  const context = await assembleContext(input);
+  const history = context.messages.slice(1, -1);
+  expect(history).toHaveLength(50);
+  expect(history[0].content).toContain("turn number 11");
+  expect(history.at(-1).content).toContain("turn number 60");
+  expect(history[0].content).toContain("14:30 (Asia/Kolkata)");
+  const small = await assembleContext({...input, recentTokenBudget: 100});
+  expect(small.messages.slice(1, -1).reduce((n, m) => n + estimateTokens(m.content) + 4, 0)).toBeLessThanOrEqual(100);
+});
+
+it("recalls an old low-priority fact beyond 50 unrelated memories without changing fact dates", async () => {
+  const { retrieveMemories } = await import("../src/services/memory.service.js");
+  const base = {relationshipId: relationship._id, userId: "alice", characterId: character._id, type: "user_fact"};
+  await MemoryModel.insertMany(Array.from({length: 70}, (_, i) => ({...base, normalizedKey: `unrelated_${i}`, text: `Unrelated memory ${i}`, importance: 1})));
+  const cafe = await MemoryModel.create({...base, normalizedKey: "tokyo_cafe", text: "Loved Kissa Aoyama in Tokyo", importance: 0.1});
+  const memories = await retrieveMemories({relationshipId: String(relationship._id), userId: "alice", query: "that Tokyo cafe", vectorEnabled: false});
+  expect(memories.map(m => m.text)).toContain(cafe.text);
+  const after = await MemoryModel.findById(cafe._id);
+  expect(after.updatedAt).toEqual(cafe.updatedAt);
+  expect(after.lastRetrievedAt).toBeInstanceOf(Date);
+  expect(await retrieveMemories({relationshipId: relationship._id, userId: "bob", query: "Tokyo"})).toEqual([]);
+});
+
+it("revalidates vector hits so stale deleted text cannot return and casts relationship filters", async () => {
+  const { retrieveMemories } = await import("../src/services/memory.service.js");
+  const forgotten = await MemoryModel.create({relationshipId: relationship._id, userId: "alice", characterId: character._id, type: "user_fact", normalizedKey: "old_secret", text: "Forgotten detail", status: "deleted"});
+  const aggregate = vi.spyOn(MemoryModel, "aggregate").mockResolvedValue([{...forgotten.toObject(), score: 0.95}]);
+  const provider = {model: "embedding-test", embed: vi.fn(async () => [0.1, 0.2])};
+  expect(await retrieveMemories({relationshipId: String(relationship._id), userId: "alice", query: "remind me", vectorEnabled: true, embeddingProvider: provider, vectorIndexName: "memory_vector_index"})).toEqual([]);
+  const filter = aggregate.mock.calls[0][0][0].$vectorSearch.filter;
+  expect(filter.relationshipId.$eq).toBeInstanceOf(mongoose.Types.ObjectId);
+  expect(filter.userId.$eq).toBe("alice");
+  expect(filter.embeddingModel.$eq).toBe("embedding-test");
+});
+
+it("does not restore an embedding if a memory is deleted while backfill is awaiting the provider", async () => {
+  const { backfillEmbeddings } = await import("../src/services/memory-maintenance.service.js");
+  const memory = await MemoryModel.create({relationshipId: relationship._id, userId: "alice", characterId: character._id, type: "user_fact", normalizedKey: "user_pet", text: "Has a cat"});
+  const provider = {model: "embedding-test", dimensions: 2, embed: async () => {
+    await MemoryModel.updateOne({_id: memory._id}, {$set: {status: "deleted"}});
+    return [0.1, 0.2];
+  }};
+  expect(await backfillEmbeddings(provider)).toBe(0);
+  expect((await MemoryModel.findById(memory._id).select("+embedding")).embedding).toBeUndefined();
+});
+
+it("fills a missing vector even when extraction repeats the same text", async () => {
+  const input = await source();
+  await MemoryModel.create({relationshipId: relationship._id, userId: "alice", characterId: character._id, type: "user_fact", normalizedKey: "user_pet", text: "Has a cat"});
+  await extractAndStoreMemory({...input, llm: {generateJson: async () => extracted}, embeddingProvider: {model: "embedding-test", embed: async () => [0.1, 0.2]}});
+  const memory = await MemoryModel.findOne({normalizedKey: "user_pet", status: "active"}).select("+embedding +embeddingModel");
+  expect(memory.embedding).toEqual([0.1, 0.2]);
+  expect(memory.embeddingModel).toBe("embedding-test");
+});
+
+it("finds original evidence when legacy memories reference a later acknowledgement, and resumes safely", async () => {
+  const { backfillDossiers } = await import("../src/services/memory-maintenance.service.js");
+  const user = await MessageModel.create({relationshipId: relationship._id, sequenceNumber: 1, role: "user", content: "I drink black coffee", status: "completed"});
+  const acknowledgement = await MessageModel.create({relationshipId: relationship._id, sequenceNumber: 2, role: "user", content: "nice", status: "completed"});
+  const base = {relationshipId: relationship._id, userId: "alice", characterId: character._id, type: "preference", sourceMessageIds: [acknowledgement._id], sourceSequence: 3, confidence: 0.9};
+  await MemoryModel.create([{...base, normalizedKey: "user_coffee", text: "Drinks black coffee"}, {...base, normalizedKey: "user_tea", text: "Loves tea"}]);
+  const generateJson = vi.fn(async () => ({mood: "neutral", memories: [
+    {type: "preference", key: "user_coffee", text: "Drinks black coffee", confidence: 0.9, importance: 0.8, dossierCategory: "preference", evidence: "I drink black coffee"},
+    {type: "preference", key: "user_tea", text: "Loves tea", confidence: 0.9, importance: 0.8, dossierCategory: "preference", evidence: "I love tea"},
+  ]}));
+  expect(await backfillDossiers({generateJson})).toBe(2);
+  const rel = await RelationshipModel.findById(relationship._id);
+  expect(rel.userDossier.entries.map(e => e.text)).toEqual(["Drinks black coffee"]);
+  expect((await MemoryModel.findOne({normalizedKey: "user_coffee"})).sourceMessageIds.map(String)).toContain(String(user._id));
+  expect(await backfillDossiers({generateJson})).toBe(0);
+  expect(generateJson).toHaveBeenCalledTimes(1);
+});
+
+it("keeps newer dossier facts when a delayed extraction finishes and tracks actual callbacks", async () => {
+  const { refreshDossier } = await import("../src/services/dossier.service.js");
+  const input = await source();
+  const memory = await MemoryModel.create({relationshipId: relationship._id, userId: "alice", characterId: character._id, type: "user_fact", normalizedKey: "user_pet", text: "Has a cat", dossierCategory: "fact", confidence: 0.95, sourceSequence: 20});
+  await refreshDossier(relationship);
+  await relationship.save();
+  await extractAndStoreMemory({...input, llm: {generateJson: async () => ({...extracted, memories: [{...extracted.memories[0], text: "Has a dog", dossierCategory: "fact", evidence: "hello"}], callbacks: [{key: "user_pet", evidence: "hello"}]})}});
+  const rel = await RelationshipModel.findById(relationship._id);
+  expect(rel.userDossier.entries[0].text).toBe("Has a cat");
+  expect((await MemoryModel.findById(memory._id)).lastMentionedAt).toBeInstanceOf(Date);
 });

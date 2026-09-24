@@ -8,12 +8,13 @@ import { RelationshipModel } from "../src/models/relationship.model.js";
 import { MessageModel } from "../src/models/message.model.js";
 import { MemoryModel } from "../src/models/memory.model.js";
 import { MemoryJobModel } from "../src/models/memory-job.model.js";
+import { UserModel } from "../src/models/user.model.js";
 import {
     classifyProactiveTrigger,
     processProactiveCheckIns,
 } from "../src/workers/proactive.worker.js";
 
-const models = [CharacterModel, RelationshipModel, MessageModel, MemoryModel, MemoryJobModel];
+const models = [CharacterModel, RelationshipModel, MessageModel, MemoryModel, MemoryJobModel, UserModel];
 const env = {NODE_ENV: "test", ALLOW_DEV_AUTH: true, CORS_ORIGIN: "http://localhost:5173", MEMORY_VECTOR_SEARCH_ENABLED: false};
 let database, character, relationship, app, server, baseUrl;
 
@@ -68,10 +69,6 @@ beforeEach(async () => {
 
 afterEach(() => vi.restoreAllMocks());
 
-function systemText(messages) {
-    return messages.filter(m => m.role === "system").map(m => m.content).join("\n");
-}
-
 async function lastTurn({ role, origin = "reply", content = "hey", seq = 1, agoMs, readAgoMs }) {
     const createdAt = new Date(Date.now() - agoMs);
     await MessageModel.create({
@@ -92,88 +89,36 @@ async function lastTurn({ role, origin = "reply", content = "hey", seq = 1, agoM
     await RelationshipModel.updateOne({ _id: relationship._id }, { $set: update });
 }
 
-it("classifies left on read from the read clock, unread as gone offline, user as late reply", () => {
+it("does not treat a read receipt or thirty-second silence as a reason to message", () => {
     const now = Date.now();
-    const assistant = { role: "assistant", origin: "reply", sequenceNumber: 1, createdAt: new Date(now - 10 * 60_000) };
-    expect(classifyProactiveTrigger(
-        { userLastReadSequence: 1, userLastReadAt: new Date(now - 70_000) },
-        assistant,
-        now,
-    )).toBe("left_on_read");
-    expect(classifyProactiveTrigger(
-        { userLastReadSequence: 1, userLastReadAt: new Date(now - 10_000) },
-        assistant,
-        now,
-    )).toBeNull();
-    expect(classifyProactiveTrigger({ userLastReadSequence: 0 }, assistant, now)).toBe("idle_nudge");
-    expect(classifyProactiveTrigger(
-        { userLastReadSequence: 0 },
-        { ...assistant, createdAt: new Date(now - 60_000) },
-        now,
-    )).toBeNull();
-    expect(classifyProactiveTrigger({}, { role: "user", createdAt: new Date(now - 90_000) }, now)).toBe("check_in");
-    expect(classifyProactiveTrigger({}, { role: "assistant", origin: "initiated", sequenceNumber: 2, createdAt: new Date(now - 10 * 60_000) }, now)).toBeNull();
+    const assistant = {role: "assistant", origin: "reply", sequenceNumber: 1, createdAt: new Date(now - 30_000)};
+    expect(classifyProactiveTrigger({userLastReadSequence: 1, userLastReadAt: new Date(now - 20_000)}, assistant, now)).toBeNull();
+    expect(classifyProactiveTrigger({}, assistant, now)).toBeNull();
+    expect(classifyProactiveTrigger({}, {...assistant, role: "user", content: "what were you making?", createdAt: new Date(now - 100_000)}, now)).toBe("check_in");
+    expect(classifyProactiveTrigger({}, {...assistant, role: "user", content: "goodnight", createdAt: new Date(now - 100_000)}, now)).toBeNull();
+    expect(classifyProactiveTrigger({}, {...assistant, status: "streaming"}, now)).toBeNull();
 });
 
-it("initiates via HTTP endpoint with triggerType follow_up and idle_nudge", async () => {
-    const res1 = await fetch(`${baseUrl}/api/relationships/${relationship._id}/chat/initiate`, {
-        method: "POST",
-        headers: { "x-user-id": "dev_user", "content-type": "application/json" },
-        body: JSON.stringify({ triggerType: "follow_up" }),
-    });
-    const body1 = await res1.json();
-
-    expect(res1.status).toBe(201);
-    expect(body1.data.role).toBe("assistant");
-    expect(body1.data.origin).toBe("initiated");
-    expect(body1.data.content).toBe("and one more thing");
-
-    const res2 = await fetch(`${baseUrl}/api/relationships/${relationship._id}/chat/initiate`, {
-        method: "POST",
-        headers: { "x-user-id": "dev_user", "content-type": "application/json" },
-        body: JSON.stringify({ triggerType: "idle_nudge" }),
-    });
-    const body2 = await res2.json();
-
-    expect(res2.status).toBe(201);
-    expect(body2.data.content).toBe("you just disappeared on me");
+it("requires a relevant thread and a long cooldown for callbacks", () => {
+    const now = Date.now();
+    const assistant = {role: "assistant", origin: "reply", createdAt: new Date(now - 7 * 60 * 60_000)};
+    expect(classifyProactiveTrigger({}, assistant, now)).toBeNull();
+    const relationship = {conversationState: {activeThread: "shared film recommendations"}};
+    expect(classifyProactiveTrigger(relationship, assistant, now)).toBe("callback");
+    expect(classifyProactiveTrigger({...relationship, lastInitiatedAt: new Date(now - 60_000)}, assistant, now)).toBeNull();
 });
 
-it("puts the poke as a trailing directive with examples, and omits media tools", async () => {
-    let captured = [];
-    const testLlm = {
-        name: "test",
-        model: "test",
-        async generateText({ messages }) {
-            captured = messages;
-            return "test reply";
-        },
-    };
-    const appWithCapture = createApp({ env, llm: testLlm });
-    const captureServer = createServer(appWithCapture);
-    await new Promise(resolve => captureServer.listen(0, resolve));
-    const port = captureServer.address().port;
-    try {
-        await fetch(`http://127.0.0.1:${port}/api/relationships/${relationship._id}/chat/initiate`, {
-            method: "POST",
-            headers: { "x-user-id": "dev_user", "content-type": "application/json" },
-            body: JSON.stringify({ triggerType: "idle_nudge" }),
+it("ignores legacy client timers without generating extra bubbles", async () => {
+    const generation = vi.spyOn(llm, "generateText");
+    for (const triggerType of ["follow_up", "idle_nudge"]) {
+        const response = await fetch(`${baseUrl}/api/relationships/${relationship._id}/chat/initiate`, {
+            method: "POST", headers: {"x-user-id": "dev_user", "content-type": "application/json"}, body: JSON.stringify({triggerType}),
         });
-        expect(captured[0].role).toBe("system");
-        expect(captured[0].content).not.toContain("## Media");
-        expect(captured[0].content).not.toContain("send_photo");
-        const trailing = captured[captured.length - 1];
-        expect(trailing.role).toBe("system");
-        expect(trailing.content).toContain("Idle Nudge Directive");
-        expect(trailing.content).toContain("hello??");
-        expect(trailing.content).toContain("am i not enough");
-        expect(trailing.content).toContain("Write a new sentence");
-        expect(trailing.content).toContain("Do not paste those examples");
-        expect(trailing.content).not.toContain("cold-blooded");
-        expect(trailing.content).not.toContain("did your phone die");
-    } finally {
-        await new Promise(resolve => captureServer.close(resolve));
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({data: null, skipped: true});
     }
+    expect(generation).not.toHaveBeenCalled();
+    expect(await MessageModel.countDocuments()).toBe(0);
 });
 
 it("skips proactive check-ins if the last message was already an unreplied initiated message", async () => {
@@ -193,7 +138,7 @@ it("skips proactive check-ins if the last message was already an unreplied initi
 });
 
 it("sends a late reply when stale and last message was from user", async () => {
-    await lastTurn({ role: "user", content: "see ya later", agoMs: 2 * 60_000 });
+    await lastTurn({ role: "user", content: "what were you saying?", agoMs: 2 * 60_000 });
 
     await processProactiveCheckIns({ llm });
 
@@ -207,69 +152,18 @@ it("sends a late reply when stale and last message was from user", async () => {
     expect(updatedRel.lastInitiatedAt).toBeDefined();
 });
 
-it("pokes at night when they went quiet", async () => {
-    await lastTurn({ role: "user", content: "see ya later", agoMs: 2 * 60_000 });
-
-    await processProactiveCheckIns({ llm });
-
-    const messages = await MessageModel.find({ relationshipId: relationship._id });
-    expect(messages).toHaveLength(2);
+it("does not initiate after a user goodbye or before idle threshold", async () => {
+    await lastTurn({role: "user", content: "goodnight", agoMs: 2 * 60_000});
+    const generation = vi.spyOn(llm, "generateText");
+    await processProactiveCheckIns({llm});
+    expect(generation).not.toHaveBeenCalled();
+    await MessageModel.deleteMany({});
+    await lastTurn({role: "assistant", content: "enjoy your evening", agoMs: 30_000, readAgoMs: 10_000});
+    await processProactiveCheckIns({llm});
+    expect(generation).not.toHaveBeenCalled();
 });
 
-it("pokes left on read about a minute after they open it", async () => {
-    await lastTurn({
-        role: "assistant",
-        content: "same. aggressively unproductive, basically.",
-        agoMs: 10 * 60_000,
-        readAgoMs: 70_000,
-    });
-
-    let captured = [];
-    const testLlm = {
-        name: "fake",
-        model: "fake",
-        async generateText({ messages }) {
-            captured = messages;
-            return "you opened that and said nothing. we matched for this?";
-        },
-    };
-
-    await processProactiveCheckIns({ llm: testLlm });
-
-    const trailing = captured[captured.length - 1];
-    expect(trailing.content).toContain("Left-On-Read Directive");
-    expect(trailing.content).toContain("hello??");
-    expect(trailing.content).toContain("am i not enough");
-    expect(trailing.content).toContain("we matched for this?");
-    expect(trailing.content).toContain("Write a new sentence");
-    expect(captured[0].content).not.toContain("## Media");
-    const messages = await MessageModel.find({ relationshipId: relationship._id }).sort({ sequenceNumber: 1 });
-    expect(messages.at(-1).content).toContain("we matched for this?");
-});
-
-it("treats an unread last assistant bubble as gone offline, not left on read", async () => {
-    await lastTurn({
-        role: "assistant",
-        content: "same. aggressively unproductive, basically.",
-        agoMs: 3 * 60_000,
-    });
-
-    let captured = [];
-    const testLlm = {
-        name: "fake",
-        model: "fake",
-        async generateText({ messages }) {
-            captured = messages;
-            return "you just disappeared";
-        },
-    };
-
-    await processProactiveCheckIns({ llm: testLlm });
-    expect(systemText(captured)).toContain("Idle Nudge Directive");
-    expect(systemText(captured)).not.toContain("Left-On-Read Directive");
-});
-
-it("does not wait six hours to poke again after they reply", async () => {
+it("answers an actual new user message independently of callback cooldown", async () => {
     await lastTurn({ role: "user", content: "back", agoMs: 2 * 60_000 });
     await RelationshipModel.updateOne(
         { _id: relationship._id },
@@ -293,4 +187,79 @@ it("skips timed apologies after tone feedback without generating another message
     }
     expect(generation).not.toHaveBeenCalled();
     expect(await MessageModel.countDocuments({relationshipId: relationship._id})).toBe(2);
+});
+
+it("triggers idle_nudge after 1 minute of inactivity when user did not reply", async () => {
+    await lastTurn({ role: "assistant", content: "what are you working on today?", agoMs: 70_000 });
+
+    let capturedMessages = [];
+    const captureLlm = {
+        name: "fake",
+        model: "fake",
+        async generateText({ messages }) {
+            capturedMessages = messages;
+            return "got busy?";
+        },
+    };
+
+    await processProactiveCheckIns({ llm: captureLlm });
+
+    const messages = await MessageModel.find({ relationshipId: relationship._id }).sort({ sequenceNumber: 1 });
+    expect(messages).toHaveLength(2);
+    expect(messages[1].role).toBe("assistant");
+    expect(messages[1].origin).toBe("initiated");
+    expect(messages[1].content).toBe("got busy?");
+
+    const systemPrompt = capturedMessages.map(m => m.content).join("\n");
+    expect(systemPrompt).toContain("Idle Nudge Directive");
+    expect(systemPrompt).toContain("Relationship Stage: 'new'");
+    expect(systemPrompt).toContain("DO NOT USE CANNED TEMPLATES");
+});
+
+it("injects stage-calibrated guidance and pending question into the directive", async () => {
+    await RelationshipModel.updateOne(
+        { _id: relationship._id },
+        { 
+            $set: { 
+                stage: "friends",
+                "conversationState.pendingQuestion": "do you play any games?"
+            } 
+        }
+    );
+    await lastTurn({ role: "assistant", content: "do you play any games?", agoMs: 70_000 });
+
+    let capturedMessages = [];
+    const captureLlm = {
+        name: "fake",
+        model: "fake",
+        async generateText({ messages }) {
+            capturedMessages = messages;
+            return "did you get sucked into work?";
+        },
+    };
+
+    await processProactiveCheckIns({ llm: captureLlm });
+
+    const systemPrompt = capturedMessages.map(m => m.content).join("\n");
+    expect(systemPrompt).toContain("Relationship Stage: 'friends'");
+    expect(systemPrompt).toContain("do you play any games?");
+    expect(systemPrompt).toContain("Playful peer dynamic");
+});
+
+it("allows idle_nudge during nighttime hours without quiet hours suppression", async () => {
+    await lastTurn({ role: "assistant", content: "what are you up to?", agoMs: 70_000 });
+
+    const generation = vi.spyOn(llm, "generateText");
+    await processProactiveCheckIns({ llm });
+    expect(generation).toHaveBeenCalled();
+    expect(await MessageModel.countDocuments({ relationshipId: relationship._id })).toBe(2);
+});
+
+it("does not initiate idle_nudge before the 1-minute threshold", async () => {
+    await lastTurn({ role: "assistant", content: "what are you up to?", agoMs: 30_000 });
+
+    const generation = vi.spyOn(llm, "generateText");
+    await processProactiveCheckIns({ llm });
+    expect(generation).not.toHaveBeenCalled();
+    expect(await MessageModel.countDocuments({ relationshipId: relationship._id })).toBe(1);
 });

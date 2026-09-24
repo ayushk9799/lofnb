@@ -18,7 +18,6 @@ async function fetchBuffer(url) {
 }
 
 async function main() {
-  console.log("=== Lofn Cloudflare R2 Migration Script ===");
   const env = process.env;
   if (!env.R2_ACCOUNT_ID || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_BUCKET_NAME) {
     throw new Error("Missing Cloudflare R2 configuration in environment variables");
@@ -30,20 +29,16 @@ async function main() {
   }
 
   await connectDatabase(env.MONGODB_URI);
-  console.log("Connected to MongoDB Atlas");
 
   // 1. Migrate Characters
   const characters = await CharacterModel.find({});
-  console.log(`\nMigrating ${characters.length} character(s) to Cloudflare R2...`);
 
   for (const char of characters) {
-    console.log(`\nProcessing character: ${char.name} (${char._id})`);
     const charId = String(char._id);
 
     // 1a. Upload Avatar
     let avatarUrl = char.avatarUrl;
     if (avatarUrl && !avatarUrl.includes(".r2.cloudflarestorage.com") && !avatarUrl.includes("r2.dev") && !avatarUrl.includes("r2.lofnchat.com")) {
-      console.log(` Downloading character avatar: ${avatarUrl}`);
       try {
         const buf = await fetchBuffer(avatarUrl);
         const result = await storage.upload({
@@ -51,7 +46,6 @@ async function main() {
           folder: `characters/${charId}`,
           filename: `avatar.jpg`,
         });
-        console.log(` -> Uploaded Avatar to R2: ${result.url}`);
         char.avatarUrl = result.url;
       } catch (err) {
         console.error(` Failed to upload character avatar:`, err.message);
@@ -66,7 +60,6 @@ async function main() {
     for (let i = 0; i < galleryItems.length; i++) {
       const item = galleryItems[i];
       const photoUrl = item.url;
-      console.log(` Downloading photo [${i}]: ${photoUrl}`);
 
       try {
         const buf = await fetchBuffer(photoUrl);
@@ -75,7 +68,6 @@ async function main() {
           folder: `characters/${charId}/photos`,
           filename: `${i}_${randomUUID().slice(0, 8)}.jpg`,
         });
-        console.log(` -> Uploaded Photo [${i}] to R2: ${photoResult.url}`);
         newPhotos.push(photoResult.url);
         newGallery.push({
           url: photoResult.url,
@@ -96,18 +88,15 @@ async function main() {
     char.photos = newPhotos;
     char.gallery = newGallery;
     await char.save();
-    console.log(` Updated character ${char.name} in MongoDB with Cloudflare R2 URLs.`);
   }
 
   // 2. Migrate User Avatars
   const users = await UserModel.find({});
-  console.log(`\nMigrating ${users.length} user avatar(s) to Cloudflare R2...`);
 
   for (const user of users) {
     const userId = String(user._id);
     if (user.avatarUrl && !user.avatarUrl.includes("r2.dev") && !user.avatarUrl.includes("r2.lofnchat.com") && !user.avatarUrl.includes("r2.cloudflarestorage.com")) {
-      console.log(`\nProcessing user: ${user.name} (${user.email || userId})`);
-      console.log(` Downloading user avatar: ${user.avatarUrl}`);
+    
       try {
         const buf = await fetchBuffer(user.avatarUrl);
         const result = await storage.upload({
@@ -115,16 +104,13 @@ async function main() {
           folder: `users/${userId}/avatar`,
           filename: `avatar_${randomUUID().slice(0, 8)}.jpg`,
         });
-        console.log(` -> Uploaded User Avatar to R2: ${result.url}`);
         user.avatarUrl = result.url;
         user.avatarKey = result.key;
         await user.save();
-        console.log(` Updated user ${user.name} in MongoDB with Cloudflare R2 avatar.`);
       } catch (err) {
         console.error(` Failed to upload user avatar:`, err.message);
       }
     } else {
-      console.log(`User ${user.name} avatar already on R2 or empty: ${user.avatarUrl}`);
     }
   }
 
@@ -139,14 +125,12 @@ async function main() {
         catalog[0].photos = maya.photos;
         catalog[0].gallery = maya.gallery.map(g => ({ url: g.url, caption: g.caption }));
         await writeFile(catalogPath, JSON.stringify(catalog, null, 2), "utf8");
-        console.log(`\nUpdated data/characters.example.json with Cloudflare R2 URLs`);
       }
     } catch (err) {
       console.warn("Could not update characters.example.json:", err.message);
     }
   }
 
-  console.log("\n=== Migration to Cloudflare R2 Completed Successfully! ===");
   await disconnectDatabase();
 }
 

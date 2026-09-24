@@ -198,7 +198,7 @@ export class OpenAiCompatibleEmbeddingProvider {
     const response = await fetch(endpoint(this.baseUrl, "embeddings"), {
       method: "POST",
       headers: getHeaders(this.baseUrl, this.apiKey),
-      body: JSON.stringify({ model: this.model, input: text }),
+      body: JSON.stringify({ model: this.model, input: text, dimensions: this.dimensions }),
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(15_000)])
         : AbortSignal.timeout(15_000),

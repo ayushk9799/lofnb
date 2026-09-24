@@ -24,7 +24,6 @@ try {
     }
 
     const userId = user.userId;
-    console.log(`Found user: ${user.name} (${user.email}), userId: ${userId}`);
 
     // 1. Find all relationships for this user
     const relationships = await RelationshipModel.find({ userId }).select("_id").lean();
@@ -57,7 +56,6 @@ try {
     // 7. Reset or delete user profile
     if (shouldDeleteUser) {
         await UserModel.deleteOne({ _id: user._id });
-        console.log(`- User record: completely deleted from database.`);
     } else {
         await UserModel.updateOne(
             { _id: user._id },
@@ -83,16 +81,9 @@ try {
                 },
             }
         );
-        console.log(`- User profile fields reset to initial defaults (bio, interestedIn, vibe, minAge, maxAge, age, onboardedAt, premium).`);
     }
 
-    console.log("\nReset Summary:");
-    console.log(`- Messages deleted: ${deletedMessages.deletedCount}`);
-    console.log(`- Relationships deleted: ${deletedRelationships.deletedCount}`);
-    console.log(`- Swipes deleted: ${deletedSwipes.deletedCount}`);
-    console.log(`- Memory jobs deleted: ${deletedJobs.deletedCount}`);
-    console.log(`- Memories deleted: ${deletedMemories.deletedCount}`);
-    console.log(`\nSuccessfully reset data for ${targetEmail}!`);
+  
 } finally {
     await disconnectDatabase();
 }

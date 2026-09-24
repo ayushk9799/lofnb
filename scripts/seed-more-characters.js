@@ -586,10 +586,8 @@ const newCharactersToAdd = [
 ];
 
 async function main() {
-  console.log("=== Seeding More Characters & Updating Bios to 1st Person ===");
   const storage = new StorageService(env);
-  console.log("R2 Configured:", storage.isR2Configured());
-  console.log("R2 Public URL:", env.R2_PUBLIC_URL);
+
 
   const catalogPath = path.resolve(__dirname, "../data/characters.example.json");
   const existingCatalog = JSON.parse(await readFile(catalogPath, "utf8"));
@@ -615,12 +613,10 @@ async function main() {
   const processedNewCharacters = [];
 
   for (const char of newCharactersToAdd) {
-    console.log(`\nProcessing: ${char.name} (${char.slug})...`);
 
     let avatarUrl = char.sourceImages.avatar;
     if (storage.isR2Configured()) {
       try {
-        console.log(`  Uploading avatar to R2...`);
         const avatarBuf = await fetchBuffer(char.sourceImages.avatar);
         const avatarResult = await storage.upload({
           buffer: avatarBuf,
@@ -628,7 +624,6 @@ async function main() {
           filename: `avatar.jpg`,
         });
         avatarUrl = avatarResult.url;
-        console.log(`  -> Avatar URL: ${avatarUrl}`);
       } catch (err) {
         console.warn(`  Avatar upload failed, falling back to source URL:`, err.message);
       }
@@ -643,7 +638,6 @@ async function main() {
 
       if (storage.isR2Configured()) {
         try {
-          console.log(`  Uploading photo [${i}] to R2...`);
           const photoBuf = await fetchBuffer(gItem.url);
           const photoResult = await storage.upload({
             buffer: photoBuf,
@@ -651,7 +645,6 @@ async function main() {
             filename: `${i}_${randomUUID().slice(0, 8)}.jpg`,
           });
           photoUrl = photoResult.url;
-          console.log(`  -> Photo [${i}] URL: ${photoUrl}`);
         } catch (err) {
           console.warn(`  Photo [${i}] upload failed, falling back to source URL:`, err.message);
         }
@@ -695,25 +688,19 @@ async function main() {
     ...processedNewCharacters
   ];
 
-  console.log(`\nValidating all ${mergedCatalog.length} characters against schema...`);
   await validateCharacterCatalog(mergedCatalog);
-  console.log("✅ Validation passed!");
 
   // 4. Save to data/characters.example.json
   await writeFile(catalogPath, JSON.stringify(mergedCatalog, null, 2), "utf8");
-  console.log(`✅ Saved ${mergedCatalog.length} characters to data/characters.example.json`);
 
   // 5. Seed into MongoDB
-  console.log("\nConnecting to MongoDB...");
   await connectDatabase(env.MONGODB_URI);
   try {
     const res = await importCharacterCatalog(mergedCatalog, { update: true, fillMissingPrompts: true });
-    console.log("✅ MongoDB Import Result:", res);
   } finally {
     await disconnectDatabase();
   }
 
-  console.log("\n🎉 All 10 characters successfully updated and seeded!");
 }
 
 main().catch(err => {

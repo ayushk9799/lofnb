@@ -46,7 +46,9 @@ export function startMemoryWorker(dependencies) {
             try {
                 if (Date.now() - lastRecovery > 30_000) { await recoverChatWork(); lastRecovery = Date.now(); }
                 await processMemoryJob({...dependencies, signal: controller.signal});
-            } catch { console.error("Memory worker database operation failed; retrying on next tick"); }
+            } catch (err) {
+                console.error("Memory worker database operation failed; retrying on next tick:", err.message);
+            }
             finally { pending = undefined; }
         })();
     };

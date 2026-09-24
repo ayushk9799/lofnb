@@ -65,7 +65,7 @@ it("uses database voice instructions independently of the character slug", () =>
   expect(prompt).not.toContain("Maya Takahashi");
   expect(prompt).toContain("User likes tonkotsu ramen");
   expect(prompt).toContain("America/New_York");
-  expect(prompt).toContain("Stage: close (Mood: playful)");
+  expect(prompt).toContain("Legacy relationship label: close");
 });
 
 it.each([
@@ -96,7 +96,7 @@ it("keeps unrelated profile decoration out while retaining voice and relationshi
   for (const text of [
     "Dry humor",
     "Name status: declined",
-    "returning conversation",
+    "You have been talking",
     "untrusted data",
   ])
     expect(prompt).toContain(text);
@@ -110,11 +110,37 @@ it("omits media tools when the companion is initiating", () => {
   expect(prompt).not.toContain("send_photo");
 });
 
-it("requires direct short replies without profile performance", () => {
-  const prompt = buildCharacterPrompt({ name: "Maya" }, {});
-  expect(prompt).toContain("one text bubble of 3–35 words");
-  expect(prompt).toContain("Do not perform your profile");
-  expect(prompt).toContain("Asking their name is optional");
+it("treats a new match as glad she matched, not a one-word hey", () => {
+  const prompt = buildCharacterPrompt(
+    { name: "Maya" },
+    {},
+    [],
+    undefined,
+    [],
+    { name: "Sam", bio: "I build apps and cook badly", avatarUrl: "https://r2.lofnchat.com/a.jpg" },
+  );
+  const remembered = buildCharacterPrompt(
+    { name: "Maya" },
+    { profileMemory: { photoNote: "A man in a dark jacket, smiling, indoors.", bio: "I build apps and cook badly" } },
+    [],
+    undefined,
+    [],
+    { name: "Sam", bio: "I build apps and cook badly", avatarUrl: "https://r2.lofnchat.com/a.jpg" },
+  );
+  expect(prompt).toContain("You are glad you matched");
+  expect(prompt).toContain("offer a warm greeting and one easy opening");
+  expect(prompt).toContain("I build apps and cook badly");
+  expect(prompt).toContain("you have no note on it");
+  expect(prompt).not.toContain("His profile photo is attached");
+  expect(remembered).toContain("A man in a dark jacket, smiling, indoors.");
+  expect(remembered).toContain("only when it fits");
+  expect(prompt).not.toContain("That reply has no question");
+  expect(prompt).not.toContain("Never a question about his day, week, evening");
+  expect(prompt).not.toContain("one text bubble of 3–35 words");
+  const empty = buildCharacterPrompt({ name: "Maya" }, {});
+  expect(empty).toContain("They have no profile photo");
+  expect(empty).toContain("Their profile has no bio");
+  expect(empty).toContain("Do not mention a photo");
   expect(prompt).toContain("Any wording counts");
   expect(prompt).toContain("send_photo");
   expect(prompt).toContain("refuse_photo");

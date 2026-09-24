@@ -12,4 +12,3 @@ async function check(directory) {
 }
 await check("src");
 await check("scripts");
-console.log("Backend syntax checks passed");

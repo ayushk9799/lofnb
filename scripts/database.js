@@ -16,6 +16,5 @@ try {
             if (error.code === 26) return [];
             throw error;
         });
-        console.log(JSON.stringify({model:model.modelName, declared:model.schema.indexes(), actual}));
     }
 } finally { await disconnectDatabase(); }

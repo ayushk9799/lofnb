@@ -122,7 +122,7 @@ relationshipsRouter.get("/:relationshipId/messages", async (request, response) =
     await requireOwnedRelationship(relationshipId, request.auth.userId);
     const query = messageQuery.parse(request.query);
     const filter = { relationshipId };
-    const select = "sequenceNumber role content status createdAt completedAt readAt mediaUrl mediaKey mediaType mediaMeta clientMessageId";
+    const select = "sequenceNumber role content bubbles status createdAt completedAt readAt mediaUrl mediaKey mediaType mediaMeta clientMessageId";
     if (query.after !== undefined) {
         filter.sequenceNumber = { $gt: query.after };
         const messages = await MessageModel.find(filter)

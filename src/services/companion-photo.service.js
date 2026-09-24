@@ -34,14 +34,17 @@ export function userAskedForPhoto(text) {
     if (/\b(voice( ?note)?|audio|voicenote)\b/i.test(value)) return false;
     return (
         userAskedForPhotosTaken(value) ||
-        /\b(send|show|share|drop|post)\b.{0,28}\b(pic|pics|photo|photos|picture|selfie|shot)\b/i.test(value) ||
-        /\b(pic|photo|picture|selfie)\b.{0,20}\b(please|pls|of (it|that|this|you|your))\b/i.test(value) ||
+        userAskedForSelfie(value) ||
+        /\b(send|show|share|drop|post|give|gimme|bhejo|dedo|dikhao|snap|dm)\b.{0,28}\b(pic|pics|photo|photos|picture|pictures|selfie|selfies|shot|shots)\b/i.test(value) ||
+        /\b(pic|pics|photo|photos|picture|pictures|selfie|selfies)\b.{0,20}\b(please|pls|na|bhejo|dedo|dikhao|of (it|that|this|you|your|ur))\b/i.test(value) ||
         /\bwhat does (it|that|this) look like\b/i.test(value) ||
-        /\bcan i see (it|that|this|you|a pic|a photo)\b/i.test(value) ||
+        /\bcan i see (it|that|this|you|a pic|a photo|your face)\b/i.test(value) ||
+        /\b(let me|lemme) see\b/i.test(value) ||
         /\bwhere('?s| is) (it|the (pic|photo|picture))\b/i.test(value) ||
-        /\b(send|show) it\b/i.test(value) ||
+        /\b(send|show|give|drop) it\b/i.test(value) ||
         /\bplease do it\b/i.test(value) ||
-        /\bsend\b.{0,16}\bna\b/i.test(value)
+        /\b(send|bhejo|dikhao)\b.{0,16}\bna\b/i.test(value) ||
+        /\b(your|ur)\b.{0,10}\b(face|look|selfie|selfies)\b/i.test(value)
     );
 }
 
@@ -50,16 +53,16 @@ export function looksLikePhotoFollowUp(text) {
     if (!value) return false;
     if (/\b(voice( ?note)?|audio|voicenote)\b/i.test(value)) return false;
     return (
-        /^(please|pls|na|again|send|send na|come on|do it)[.!?]*$/i.test(value) ||
-        /\bsend\b.{0,16}\b(na|pls|please|again)\b/i.test(value) ||
-        /\b(pic|pics|photo|photos)\s*(na|pls|please)?[.!?]*$/i.test(value)
+        /^(please|pls|na|again|send|send na|come on|do it|give|gimme|bhejo|dikhao)[.!?]*$/i.test(value) ||
+        /\b(send|give|bhejo|dikhao)\b.{0,16}\b(na|pls|please|again)\b/i.test(value) ||
+        /\b(pic|pics|photo|photos|selfie|selfies)\s*(na|pls|please)?[.!?]*$/i.test(value)
     );
 }
 
 export function userAskedForPhotosTaken(text) {
     const value = String(text || "");
     return (
-        /\b(pic|pics|photo|photos|picture|shot|shots)\b.{0,48}\b(you('ve| have)? |u )?(taken|took|shot|captured)\b/i.test(value) ||
+        /\b(pic|pics|photo|photos|picture|pictures|shot|shots)\b.{0,48}\b(you('ve| have)? |u )?(taken|took|shot|captured)\b/i.test(value) ||
         /\b(taken|took|shot|captured)\b.{0,24}\b(by you|with your (camera|phone))\b/i.test(value) ||
         /\b(your|ur)\b.{0,20}\b(photography|portfolio)\b/i.test(value) ||
         /\b(from your (camera|shoot|lens))\b/i.test(value)
@@ -70,10 +73,10 @@ export function userAskedForSelfie(text) {
     if (userAskedForPhotosTaken(text)) return false;
     const value = String(text || "");
     return (
-        /\bselfie\b/i.test(value) ||
-        /\b(pic|photo|picture)\b.{0,24}\bof (you|u|yourself)\b/i.test(value) ||
-        /\b(your|ur)\b.{0,8}\b(selfie|face)\b/i.test(value) ||
-        /\b(send|show|share|drop)\b.{0,20}\b(your|ur)\b.{0,10}\b(pic|photo|picture)s?\b/i.test(value)
+        /\bselfies?\b/i.test(value) ||
+        /\b(pic|photo|picture|shot)s?\b.{0,24}\bof (you|u|yourself)\b/i.test(value) ||
+        /\b(your|ur)\b.{0,8}\b(selfie|selfies|face)\b/i.test(value) ||
+        /\b(send|show|share|drop|give|gimme|bhejo|dedo|dikhao|snap|dm)\b.{0,20}\b(your|ur)\b.{0,10}\b(pic|photo|picture|selfie)s?\b/i.test(value)
     );
 }
 
@@ -109,7 +112,8 @@ export function matchGalleryPhoto(gallery = [], query = "") {
         if (!item?.url) continue;
         const hay = `${item.caption || ""}`.toLowerCase();
         const hits = terms.filter((word) => hay.includes(word)).length;
-        if (hits > score) {
+        const ratio = hits / terms.length;
+        if (hits > score && (ratio >= 0.6 || (hits >= 2 && ratio >= 0.5))) {
             score = hits;
             best = item;
         }
@@ -124,11 +128,15 @@ export function pickCameraRollPhoto(roll = [], query = "") {
 export function replyClaimsPhoto(text) {
     const value = String(text || "");
     return (
-        /\bhere('s| is) (another|one|it|you go)\b/i.test(value) ||
+        /\bhere('s| is) (another|one|it|you go|a |my )\b/i.test(value) ||
         /\bhere you go\b/i.test(value) ||
         /\bdropped it\b/i.test(value) ||
-        /\b(sending|sent) (it|this|a pic|a photo|one)\b/i.test(value) ||
-        /\bthis one'?s from\b/i.test(value)
+        /\b(sending|sent|attaching|attached) (it|this|a pic|a photo|a selfie|one)\b/i.test(value) ||
+        /\b(took|snapped) this (for you|just now|earlier|today)?\b/i.test(value) ||
+        /\bthis one'?s from\b/i.test(value) ||
+        /\bcheck (this|it) out\b/i.test(value) ||
+        /\b(dig|dug) through my phone\b/i.test(value) ||
+        /\bnon-awkward one\b/i.test(value)
     );
 }
 
@@ -194,6 +202,7 @@ export function decideCompanionPhoto({
     replyText = "",
     hasVoiceIntent = false,
     intent,
+    isRateLimited = false,
 } = {}) {
     const hasContext = asked != null || claimed != null || Boolean(toolIntent) || Boolean(userText) || Boolean(replyText);
     if (!hasContext) {
@@ -206,7 +215,10 @@ export function decideCompanionPhoto({
     const didClaim = claimed ?? replyClaimsPhoto(replyText);
     const toolQuery = String(toolIntent?.query || intent?.query || "").trim();
 
-    if (looksLikeVisualPhotoQuery(toolQuery, replyText)) return { query: toolQuery };
+    if (looksLikeVisualPhotoQuery(toolQuery, replyText)) {
+        if (!userAsked && isRateLimited && !didClaim) return null;
+        return { query: toolQuery };
+    }
     // Infer send from what she did: called send_photo, or said she sent one.
     // No tool and no claim means she did not send, whatever wording she used.
     if (didClaim && !(hasVoiceIntent && !userAsked)) {
@@ -319,7 +331,14 @@ export async function attachCompanionPhoto({
                 mediaMeta,
             },
         });
-        return { ...stored, source };
+        return {
+            ...stored,
+            mediaUrl: stored.url,
+            mediaKey: stored.key,
+            mediaType: "image",
+            mediaMeta,
+            source,
+        };
     } catch (error) {
         console.warn("[chat] companion photo skipped:", error?.message || error);
         return null;
@@ -363,15 +382,20 @@ export async function unlockCompanionMedia({
 
     const defaultCost = isVoice ? VOICE_UNLOCK_COST : PHOTO_UNLOCK_COST;
     const cost = Number(meta.unlockCost) > 0 ? Number(meta.unlockCost) : defaultCost;
-    if (!currencyService) {
+    let balance;
+    if (currencyService?.isConfigured?.()) {
+        const result = await currencyService.adjustBalance(
+            customerId,
+            -Math.abs(cost),
+            "GEMS",
+            `unlock-${userId}-${messageId}`,
+        );
+        balance = result.balance;
+    } else if (process.env.NODE_ENV === "development" || process.env.ALLOW_DEV_AUTH === "true") {
+        balance = 9999;
+    } else {
         throw new HttpError(500, "Currency is not configured", "CURRENCY_NOT_CONFIGURED");
     }
-    const result = await currencyService.adjustBalance(
-        customerId,
-        -Math.abs(cost),
-        "GEMS",
-        `unlock-${userId}-${messageId}`,
-    );
     message.mediaMeta = {
         ...meta,
         locked: false,
@@ -382,7 +406,7 @@ export async function unlockCompanionMedia({
     return {
         alreadyUnlocked: false,
         spent: cost,
-        remainingGems: result.balance,
+        remainingGems: balance,
         mediaMeta: message.mediaMeta,
     };
 }

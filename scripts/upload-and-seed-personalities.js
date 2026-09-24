@@ -685,7 +685,6 @@ const newCharactersRaw = [
 ];
 
 async function main() {
-  console.log("=== Lofn: Cloudflare R2 Upload & Multi-Character Seed ===");
 
   const { env } = await import("../src/config/env.js");
   const storage = new StorageService(env);
@@ -693,23 +692,19 @@ async function main() {
     throw new Error("Cloudflare R2 is not configured in env");
   }
 
-  console.log(`Cloudflare R2 Bucket: ${env.R2_BUCKET_NAME}`);
-  console.log(`Cloudflare Public URL: ${env.R2_PUBLIC_URL}`);
+
 
   const processedCharacters = [];
 
   for (const char of newCharactersRaw) {
-    console.log(`\nProcessing character: ${char.name} (${char.slug})...`);
 
     // 1. Upload Avatar to Cloudflare R2
-    console.log(` Uploading Avatar from ${char.sourceImages.avatar}...`);
     const avatarBuf = await fetchBuffer(char.sourceImages.avatar);
     const avatarResult = await storage.upload({
       buffer: avatarBuf,
       folder: `characters/${char.slug}`,
       filename: `avatar.jpg`,
     });
-    console.log(` -> Avatar uploaded to R2: ${avatarResult.url}`);
 
     // 2. Upload Gallery & Photos to Cloudflare R2
     const uploadedPhotos = [];
@@ -717,14 +712,12 @@ async function main() {
 
     for (let i = 0; i < char.sourceImages.gallery.length; i++) {
       const gItem = char.sourceImages.gallery[i];
-      console.log(` Uploading Photo [${i}] from ${gItem.url}...`);
       const photoBuf = await fetchBuffer(gItem.url);
       const photoResult = await storage.upload({
         buffer: photoBuf,
         folder: `characters/${char.slug}/photos`,
         filename: `${i}_${randomUUID().slice(0, 8)}.jpg`,
       });
-      console.log(` -> Photo [${i}] uploaded to R2: ${photoResult.url}`);
       uploadedPhotos.push(photoResult.url);
       uploadedGallery.push({
         url: photoResult.url,
@@ -764,25 +757,19 @@ async function main() {
   }
 
   const allCharacters = [maya, ...processedCharacters];
-  console.log(`\nValidating all ${allCharacters.length} character records...`);
   await validateCharacterCatalog(allCharacters);
-  console.log("Validation passed successfully!");
 
   // 4. Save to data/characters.example.json
   await writeFile(catalogPath, JSON.stringify(allCharacters, null, 2), "utf8");
-  console.log(`Saved ${allCharacters.length} characters to data/characters.example.json`);
 
   // 5. Connect to MongoDB and seed
-  console.log("\nConnecting to MongoDB to update catalog...");
   await connectDatabase(env.MONGODB_URI);
   try {
     const res = await importCharacterCatalog(allCharacters, { update: true, fillMissingPrompts: true });
-    console.log("MongoDB Import Result:", res);
   } finally {
     await disconnectDatabase();
   }
 
-  console.log("\n=== Characters Seeded Successfully with Cloudflare R2! ===");
 }
 
 main().catch(err => {

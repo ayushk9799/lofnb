@@ -29,6 +29,12 @@ const memorySchema = new Schema({
     sourceMessageIds: [{ type: Schema.Types.ObjectId, ref: "Message" }],
     confidence: { type: Number, default: 0.8, min: 0, max: 1 },
     importance: { type: Number, default: 0.5, min: 0, max: 1 },
+    dossierCategory: { type: String, enum: ["fact", "preference", "habit", "inside_joke", "current_life"] },
+    evidence: { type: String, maxlength: 2000 },
+    dossierReviewedAt: Date,
+    dossierReviewVersion: Number,
+    expiresAt: Date,
+    lastMentionedAt: Date,
     status: {
         type: String,
         enum: ["active", "superseded", "deleted"],

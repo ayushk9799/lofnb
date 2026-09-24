@@ -98,6 +98,18 @@ it("attaches a photo if the text claims she sent one but she forgot the tool", (
   });
 });
 
+it("does not drop a photo if the assistant text claims a photo even when rate limited", () => {
+  expect(resolveCompanionMedia({
+    userText: "give your selfie",
+    replyText: "had to dig through my phone for a non-awkward one, but here you go\n\ncaught mid-refill on the caffeine",
+    isRateLimited: true,
+  })).toEqual({
+    photo: { query: "a candid photo of me" },
+    voice: null,
+    decision: "image_sent",
+  });
+});
+
 it("attaches audio only from send_voice_note", () => {
   expect(resolveCompanionMedia({
     toolVoice: { action: "send", spoken: "hey, wrapping the table now" },

@@ -112,7 +112,7 @@ describe("environment configuration with OpenAI defaults", () => {
     expect(parsed.LLM_MODEL).toBe("openrouter/auto");
     expect(parsed.EMBEDDING_API_KEY).toBe("sk-or-v1-testkey123");
     expect(parsed.EMBEDDING_BASE_URL).toBe("https://openrouter.ai/api/v1");
-    expect(parsed.EMBEDDING_MODEL).toBe("text-embedding-3-small");
+    expect(parsed.EMBEDDING_MODEL).toBe("openai/text-embedding-3-small");
 
     const provider = createLlmProvider(parsed);
     expect(provider).toBeDefined();

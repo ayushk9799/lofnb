@@ -14,7 +14,6 @@ const IMAGE_2_PATH = path.join(DOWNLOADS_DIR, "2_Maya.png");
 const IMAGE_3_PATH = path.join(DOWNLOADS_DIR, "3_Maya.png");
 
 async function main() {
-  console.log("=== Uploading Maya Images to Cloudflare R2 ===");
 
   if (!env.R2_ACCOUNT_ID || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_BUCKET_NAME) {
     throw new Error("Missing Cloudflare R2 configuration in environment variables");
@@ -29,24 +28,19 @@ async function main() {
     },
   });
 
-  console.log("Reading images (preferring optimized if available)...");
   let buf1, buf2, buf3;
   try {
     buf1 = await readFile("/tmp/1_Maya_opt.jpg");
     buf2 = await readFile("/tmp/2_Maya_opt.jpg");
     buf3 = await readFile("/tmp/3_Maya_opt.jpg");
-    console.log("Using optimized JPEG images from /tmp/*Maya_opt.jpg");
   } catch (_) {
     buf1 = await readFile(IMAGE_1_PATH);
     buf2 = await readFile(IMAGE_2_PATH);
     buf3 = await readFile(IMAGE_3_PATH);
   }
-  console.log(`- Image 1: ${buf1.length} bytes`);
-  console.log(`- Image 2: ${buf2.length} bytes`);
-  console.log(`- Image 3: ${buf3.length} bytes`);
+
 
   async function upload(key, buffer, contentType = "image/jpeg") {
-    console.log(` Uploading ${key} (${buffer.length} bytes)...`);
     await s3.send(new PutObjectCommand({
       Bucket: env.R2_BUCKET_NAME,
       Key: key,
@@ -55,7 +49,6 @@ async function main() {
       CacheControl: "public, max-age=31536000, immutable",
     }));
     const publicUrl = `${env.R2_PUBLIC_URL.replace(/\/$/, "")}/${key}`;
-    console.log(` -> Done: ${publicUrl}`);
     return publicUrl;
   }
 
@@ -66,7 +59,6 @@ async function main() {
   const photo3Url = await upload("characters/maya/photos/2_dumbo.png", buf3);
 
   // 2. Overwrite legacy keys for backward-compatibility with cached/old clients
-  console.log("\nUpdating legacy R2 keys for cache consistency...");
   await upload("characters/6a9b74b263974ba7dac3a6b6/avatar.jpg", buf1);
   await upload("characters/6a9b74b263974ba7dac3a6b6/photos/0_945dac1d.jpg", buf1);
   await upload("characters/6a9b74b263974ba7dac3a6b6/photos/1_46377172.jpg", buf2);
@@ -90,7 +82,6 @@ async function main() {
   ];
 
   // 3. Update MongoDB
-  console.log("\nConnecting to MongoDB to update Maya record...");
   await connectDatabase(env.MONGODB_URI);
   try {
     const updateResult = await CharacterModel.updateOne(
@@ -103,13 +94,11 @@ async function main() {
         },
       }
     );
-    console.log("MongoDB update result:", updateResult);
   } finally {
     await disconnectDatabase();
   }
 
   // 4. Update data/characters.example.json
-  console.log("\nUpdating data/characters.example.json...");
   const catalogPath = path.resolve(__dirname, "../data/characters.example.json");
   const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
   const mayaIndex = catalog.findIndex((c) => c.slug === "maya");
@@ -118,12 +107,10 @@ async function main() {
     catalog[mayaIndex].photos = photos;
     catalog[mayaIndex].gallery = gallery;
     await writeFile(catalogPath, JSON.stringify(catalog, null, 2) + "\n", "utf8");
-    console.log("data/characters.example.json updated successfully.");
   } else {
     console.warn("Could not find slug 'maya' in characters.example.json");
   }
 
-  console.log("\n=== Upload and database update complete! ===");
 }
 
 main().catch((err) => {

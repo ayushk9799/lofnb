@@ -1,7 +1,12 @@
+import dns from "node:dns";
 import { createServer } from "node:http";
 import { createApp } from "./app.js";
 import { connectDatabase, disconnectDatabase } from "./config/database.js";
 import { env } from "./config/env.js";
+
+if (typeof dns.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
 import {
   createEmbeddingProvider,
   createLlmProvider,
@@ -34,15 +39,17 @@ try {
   const mockUsers = await UserModel.find(mockFilter).select("userId");
   if (mockUsers.length > 0) {
     const ids = mockUsers.map((u) => u.userId);
+    // Messages are owned through relationships; they have no userId field.
+    // With strictQuery, filtering by that unknown field can become an empty
+    // filter and delete everyone's history during startup.
+    const relationshipIds = await RelationshipModel.find({userId: {$in: ids}}).distinct("_id");
     await Promise.all([
       UserModel.deleteMany(mockFilter),
       RelationshipModel.deleteMany({ userId: { $in: ids } }),
-      MessageModel.deleteMany({ userId: { $in: ids } }),
+      MessageModel.deleteMany({ relationshipId: { $in: relationshipIds } }),
       MemoryModel.deleteMany({ userId: { $in: ids } }),
     ]);
-    console.log(
-      `[CLEANUP] Deleted ${mockUsers.length} mock dev accounts from database.`,
-    );
+   
   }
 } catch (err) {
   console.warn("Mock cleanup warning:", err.message);
@@ -66,23 +73,16 @@ const stopOpenerWorker = llm
   ? startOpenerWorker({ llm, env })
   : () => undefined;
 server.listen(env.PORT, () => {
-  console.log(`Lofn API listening on http://localhost:${env.PORT}`);
   if (app.locals.webDistPath) {
-    console.log(`Serving web client from: ${app.locals.webDistPath}`);
   } else {
-    console.log("No web client build found; running API only");
   }
-  console.log(
-    env.MEMORY_VECTOR_SEARCH_ENABLED
-      ? "Vector memory retrieval enabled"
-      : "Using structured memory retrieval; vector search is disabled",
-  );
+ 
 });
 let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`Received ${signal}; shutting down`);
+
   const drained = Promise.all([
     stopMemoryWorker(),
     stopProactiveWorker(),

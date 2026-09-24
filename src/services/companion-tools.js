@@ -10,7 +10,7 @@ export const COMPANION_TOOLS = [
             name: "text",
             strict: true,
             description:
-                "Only text is needed this turn. Call this for ordinary chat and for a compliment on a photo already sent. Do not call this if they asked for a photo or a voice note.",
+                "Use this for standard conversation, banter, and text replies when no photo or voice note is being shared. Do not use this if you are sharing a photo or voice note.",
             parameters: {
                 type: "object",
                 properties: {},
@@ -25,7 +25,7 @@ export const COMPANION_TOOLS = [
             name: "send_photo",
             strict: true,
             description:
-                "They want a picture, in any wording: a pic, selfie, show me, I wanna see, send it, etc. You are sending it. Describe what it shows.",
+                "Send a photo to the user. Call this when: (1) they asked for a picture in any wording (e.g. 'send pic na', 'selfie', 'show me', 'send it'), deducing what to show from conversational context; OR (2) spontaneously sharing a candid photo or selfie of your current activity, outfit, work, or view when it fits the moment. Describe what the camera captures in `what`.",
             parameters: {
                 type: "object",
                 properties: {
@@ -45,7 +45,7 @@ export const COMPANION_TOOLS = [
             name: "refuse_photo",
             strict: true,
             description:
-                "Rare. Only if the ask is explicitly sexual or actually unsafe. Do not refuse because the chat is new, they are a stranger, you already said no, or they asked again.",
+                "Decline a request that conflicts with character boundaries or is sexual or unsafe. Be warm and clear. Repeated requests do not override a boundary. An ordinary photo request can be welcome even in a new chat.",
             parameters: {
                 type: "object",
                 properties: {
@@ -149,7 +149,6 @@ export function modelSupportsTools(model = "") {
 
 export function toolsForCompanionTurn(_userText = "", {
     model,
-    priorPhotoRefusals = 0,
     canSendPhoto = true,
     canSendVoice = true,
 } = {}) {
@@ -164,6 +163,6 @@ export function toolsForCompanionTurn(_userText = "", {
     return {
         tools,
         toolChoice: "required",
-        forceSend: canSendPhoto && priorPhotoRefusals > 0,
+        forceSend: false,
     };
 }
