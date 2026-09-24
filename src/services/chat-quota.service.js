@@ -28,7 +28,7 @@ export function resolveCompanionOfflineMs(env) {
 
 export function isPremiumActive(user, env) {
     if (env?.DISABLE_CHAT_QUOTA === "true") return true;
-    if (user?.userId && (user.userId.startsWith("web_tester_") || user.userId === "dev_user")) return true;
+    if (user?.userId && user.userId === "dev_user") return true;
     if (!user?.isPremium) return false;
     if (!user.premiumExpiresAt) return true;
     const expiresAt = new Date(user.premiumExpiresAt).getTime();
@@ -153,7 +153,7 @@ export async function resolveRelationshipAvailability(rel, {
     env,
     now = Date.now(),
 } = {}) {
-    if (env?.DISABLE_CHAT_QUOTA === "true" || (user?.userId && (user.userId.startsWith("web_tester_") || user.userId === "dev_user"))) {
+    if (env?.DISABLE_CHAT_QUOTA === "true" || (user?.userId && user.userId === "dev_user")) {
         return premiumAvailability(env);
     }
     const freeMessageLimit = resolveFreeMessageLimit(env);
@@ -223,7 +223,7 @@ export async function getCompanionAvailability({
 }
 
 export async function assertCompanionOnline({ userId, relationshipId, env } = {}) {
-    if (env?.DISABLE_CHAT_QUOTA === "true" || (userId && (userId.startsWith("web_tester_") || userId === "dev_user"))) {
+    if (env?.DISABLE_CHAT_QUOTA === "true" || (userId && userId === "dev_user")) {
         return { companionOffline: false, isPremium: true };
     }
     const availability = await getCompanionAvailability({ userId, relationshipId, env });
@@ -241,13 +241,15 @@ export async function attachCompanionAvailability(userId, relationships = [], en
     const companionOfflineMinutes = resolveCompanionOfflineMinutes(env);
     if (!list.length) return list;
 
-    if (env?.DISABLE_CHAT_QUOTA === "true" || (userId && (userId.startsWith("web_tester_") || userId === "dev_user"))) {
+    if (env?.DISABLE_CHAT_QUOTA === "true" || (userId && userId === "dev_user")) {
         return list.map((rel) => ({
             ...rel,
             companionOffline: false,
             companionOfflineUntil: null,
             freeMessageLimit,
             companionOfflineMinutes,
+            userMessageCount: 0,
+            isPremium: true,
         }));
     }
 
@@ -259,6 +261,8 @@ export async function attachCompanionAvailability(userId, relationships = [], en
             companionOfflineUntil: null,
             freeMessageLimit,
             companionOfflineMinutes,
+            userMessageCount: 0,
+            isPremium: true,
         }));
     }
 
@@ -270,6 +274,8 @@ export async function attachCompanionAvailability(userId, relationships = [], en
             companionOfflineUntil: availability.companionOfflineUntil,
             freeMessageLimit: availability.freeMessageLimit,
             companionOfflineMinutes: availability.companionOfflineMinutes,
+            userMessageCount: availability.userMessageCount,
+            isPremium: availability.isPremium,
         };
     }));
 }

@@ -62,7 +62,13 @@ relationshipsRouter.post("/", async (request, response) => {
             mood: "neutral",
         },
     }, { new: true, upsert: true, setDefaultsOnInsert: true }).populate("characterId", "slug name age avatarUrl photos ethnicity occupation location gallery persona.summary persona.personalityTraits persona.values persona.boundaries hobbies");
-    response.status(201).json({ data: relationship });
+    const payload = typeof relationship.toObject === "function" ? relationship.toObject() : relationship;
+    const [data] = await attachCompanionAvailability(
+        request.auth.userId,
+        [payload],
+        request.app?.locals?.env,
+    );
+    response.status(201).json({ data });
 });
 relationshipsRouter.get("/:relationshipId", async (request, response) => {
     const relationshipId = requireObjectId(request.params.relationshipId, "relationshipId");
