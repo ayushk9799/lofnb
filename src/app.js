@@ -72,17 +72,27 @@ export function createApp({
       },
     }),
   );
+  const configuredOrigins = env?.CORS_ORIGIN
+    ? env.CORS_ORIGIN.split(",").map((o) => o.trim())
+    : [];
+
   app.use(
     cors({
-      origin: env?.CORS_ORIGIN
-        ? env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
-        : true,
+      origin: (origin, callback) => {
+        if (!origin || configuredOrigins.length === 0) return callback(null, true);
+        if (configuredOrigins.includes(origin) || configuredOrigins.includes("*")) {
+          return callback(null, true);
+        }
+        if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+          return callback(null, true);
+        }
+        callback(null, false);
+      },
       allowedHeaders: [
         "Content-Type",
         "x-user-id",
         "x-timezone",
         "Authorization",
-        "x-admin-key",
       ],
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     }),
