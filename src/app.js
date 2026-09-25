@@ -19,6 +19,7 @@ import { swipesRouter } from "./routes/swipes.routes.js";
 import { storageRouter, uploadRouter } from "./routes/upload.routes.js";
 import { createWebhookRouter } from "./routes/webhook.routes.js";
 import { createCurrencyRouter } from "./routes/currency.routes.js";
+import { analyticsRouter } from "./routes/analytics.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,6 +82,7 @@ export function createApp({
         "x-user-id",
         "x-timezone",
         "Authorization",
+        "x-admin-key",
       ],
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     }),
@@ -98,6 +100,8 @@ export function createApp({
   app.use("/api/login", authRouter);
   // Public webhooks endpoint (e.g. RevenueCat)
   app.use("/api/webhooks", createWebhookRouter({ env }));
+  // Analytics & product dashboard endpoints
+  app.use("/api/analytics", analyticsRouter);
   app.use("/api", createAuthMiddleware(env));
   app.use("/api/profile", profileRouter);
   app.use("/api/user/profile", profileRouter);
