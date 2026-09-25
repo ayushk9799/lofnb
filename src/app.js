@@ -86,6 +86,9 @@ export function createApp({
         if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
           return callback(null, true);
         }
+        if (/^https:\/\/.*\.vercel\.app$/.test(origin) || origin === "https://lofnchat.com") {
+          return callback(null, true);
+        }
         callback(null, false);
       },
       allowedHeaders: [
