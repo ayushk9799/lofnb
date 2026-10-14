@@ -103,6 +103,13 @@ export function createApp({
   app.use(express.json({ limit: "128kb" }));
   // Static uploads directory for local fallback storage
   app.use("/uploads", storageRouter);
+  app.use(
+    "/character-assets",
+    express.static(path.resolve(__dirname, "../assets/characters"), {
+      maxAge: "30d",
+      immutable: true,
+    }),
+  );
   // Public storage proxy for R2 / local media retrieval (needed for standard <img> tags)
   app.use("/api/storage", storageRouter);
   app.get("/health", (_request, response) => {

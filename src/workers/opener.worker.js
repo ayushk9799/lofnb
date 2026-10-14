@@ -10,7 +10,7 @@ import { initiateScenario } from "../services/scenario.service.js";
  * A relationship is claimed by clearing openerDueAt before generating so two
  * workers cannot send twice; a failure re-arms it a minute later.
  */
-export async function processDueOpeners({ llm, env, signal, limit = 10 }) {
+export async function processDueOpeners({ llm, env, signal, limit = 10, mediaProvider, storage }) {
     if (!llm) return;
     for (let i = 0; i < limit; i += 1) {
         if (signal?.aborted) break;
@@ -50,6 +50,9 @@ export async function processDueOpeners({ llm, env, signal, limit = 10 }) {
                     userTimezone: user?.timezone,
                     triggerType: "opener",
                     signal: combined,
+                    mediaProvider,
+                    storage,
+                    env,
                 });
             });
         } catch (error) {
@@ -77,7 +80,7 @@ export function startOpenerWorker(dependencies) {
             }
         })();
     };
-    const timer = setInterval(tick, dependencies.pollIntervalMs || 10_000);
+    const timer = setInterval(tick, dependencies.pollIntervalMs || Number(process.env.OPENER_POLL_INTERVAL_MS) || 3_000);
     timer.unref();
     tick();
     return async () => {

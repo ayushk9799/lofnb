@@ -1,3 +1,4 @@
+import { recordPresence } from "../services/presence.service.js";
 import { Router } from "express";
 import { z } from "zod";
 import { CharacterModel } from "../models/character.model.js";
@@ -22,6 +23,7 @@ const messageQuery = z.object({
     message: "Cannot specify both 'before' and 'after'",
 });
 const markReadBody = z.object({
+    presenceHandled: z.boolean().optional(),
     sequenceNumber: z.number().int().min(0).optional(),
 });
 
@@ -97,6 +99,9 @@ relationshipsRouter.post("/:relationshipId/read", async (request, response) => {
         targetSequence = latestMsg ? latestMsg.sequenceNumber : 0;
     }
     const now = new Date();
+    // Compatibility for installed clients before explicit presence heartbeats.
+    // A read is brief evidence of viewing, not indefinite online status.
+    if (!body.presenceHandled) await recordPresence({userId: request.auth.userId, sessionId: `legacy-read-${relationshipId}`, foreground: true, relationshipId, now});
     const updated = await RelationshipModel.findByIdAndUpdate(
         relationshipId,
         {

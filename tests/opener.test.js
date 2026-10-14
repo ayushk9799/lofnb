@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import { createServer } from "node:http";
@@ -133,4 +133,63 @@ it("does not let clients request server-only triggers via /initiate", async () =
         });
         expect(response.status).toBe(400);
     }
+});
+
+it("attaches a locked photo to an opener when the model includes a photo tag", async () => {
+    const [character] = await createCharacters(1);
+    await CharacterModel.updateOne({ _id: character._id }, {
+        $set: { gallery: [{ url: "https://example.com/gallery.png", caption: "morning coffee" }] },
+    });
+    const { data } = await like(character, "photo-test");
+    await RelationshipModel.updateOne({ _id: data.match._id }, { $set: { openerDueAt: new Date(Date.now() - 1000) } });
+
+    const photoLlm = {
+        name: "fake",
+        model: "fake",
+        async generateText() {
+            return "morning %%PHOTO scene|morning coffee%%";
+        },
+    };
+    await processDueOpeners({
+        llm: photoLlm,
+        storage: { upload: vi.fn() },
+    });
+
+    const messages = await MessageModel.find({ relationshipId: data.match._id }).lean();
+    expect(messages).toHaveLength(1);
+    expect(messages[0].content).toBe("morning");
+    expect(messages[0].mediaType).toBe("image");
+    expect(messages[0].mediaUrl).toBe("https://example.com/gallery.png");
+    expect(messages[0].mediaMeta?.locked).toBe(true);
+    expect(messages[0].mediaMeta?.unlockCost).toBe(99);
+});
+
+it("attaches a locked voice note to an opener when the model includes a voice tag", async () => {
+    const [character] = await createCharacters(1);
+    const { data } = await like(character, "voice-test");
+    await RelationshipModel.updateOne({ _id: data.match._id }, { $set: { openerDueAt: new Date(Date.now() - 1000) } });
+
+    const voiceLlm = {
+        name: "fake",
+        model: "fake",
+        async generateText() {
+            return "hey %%VOICE|good morning hope you slept well%%";
+        },
+    };
+    const synthesize = vi.fn(async () => ({ buffer: Buffer.from("fake-audio"), mimeType: "audio/mpeg" }));
+    const upload = vi.fn(async () => ({ url: "https://example.com/voice.mp3", key: "voice.mp3" }));
+
+    await processDueOpeners({
+        llm: voiceLlm,
+        mediaProvider: { synthesize },
+        storage: { upload },
+    });
+
+    const messages = await MessageModel.find({ relationshipId: data.match._id }).lean();
+    expect(messages).toHaveLength(1);
+    expect(messages[0].content).toBe("hey");
+    expect(messages[0].mediaType).toBe("audio");
+    expect(messages[0].mediaUrl).toBe("https://example.com/voice.mp3");
+    expect(messages[0].mediaMeta?.locked).toBe(true);
+    expect(messages[0].mediaMeta?.unlockCost).toBe(50);
 });

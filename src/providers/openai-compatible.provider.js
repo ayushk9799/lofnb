@@ -40,6 +40,37 @@ function isReasoningModel(model = "") {
 function reasoningOff() {
   return { verbosity: "low", reasoning: { effort: "none" } };
 }
+export function normalizeMessages(messages = []) {
+  if (!Array.isArray(messages) || messages.length === 0) return messages;
+
+  const result = [...messages];
+  const lastIndex = result.length - 1;
+  const lastMessage = result[lastIndex];
+
+  // If the conversation ends with a system message after dialogue history,
+  // convert that trailing directive to a user role so providers like Google Gemini
+  // do not reject with "Requests ending with a model turn are not supported"
+  if (lastMessage?.role === "system" && result.length > 1) {
+    const hasDialogue = result
+      .slice(0, lastIndex)
+      .some((m) => m.role === "user" || m.role === "assistant");
+    if (hasDialogue) {
+      result[lastIndex] = { ...lastMessage, role: "user" };
+    }
+  }
+
+  // If the final message is still an assistant turn (no user turn following),
+  // append a prompt turn so providers that require a user-turn ending do not fail.
+  if (result[result.length - 1]?.role === "assistant") {
+    result.push({
+      role: "user",
+      content:
+        "[Please continue the conversation naturally based on the above history and persona.]",
+    });
+  }
+
+  return result;
+}
 export class OpenAiCompatibleProvider {
   name = "openai-compatible";
   model;
@@ -51,6 +82,7 @@ export class OpenAiCompatibleProvider {
     this.model = options.model;
   }
   async *streamChat({ messages, tools, toolChoice, signal }) {
+    const normalized = normalizeMessages(messages);
     const reasoning = isReasoningModel(this.model);
     const isOpenRouter = Boolean(this.baseUrl && this.baseUrl.includes("openrouter.ai"));
     const response = await fetch(endpoint(this.baseUrl, "chat/completions"), {
@@ -58,7 +90,7 @@ export class OpenAiCompatibleProvider {
       headers: getHeaders(this.baseUrl, this.apiKey),
       body: JSON.stringify({
         model: this.model,
-        messages,
+        messages: normalized,
         stream: true,
         ...(Array.isArray(tools) && tools.length
           ? { tools, tool_choice: toolChoice || "auto", parallel_tool_calls: false }
@@ -140,13 +172,14 @@ export class OpenAiCompatibleProvider {
     }
   }
   async generateJson({ messages, signal }) {
+    const normalized = normalizeMessages(messages);
     const reasoning = isReasoningModel(this.model);
     const response = await fetch(endpoint(this.baseUrl, "chat/completions"), {
       method: "POST",
       headers: getHeaders(this.baseUrl, this.apiKey),
       body: JSON.stringify({
         model: this.model,
-        messages,
+        messages: normalized,
         stream: false,
         response_format: { type: "json_object" },
         ...(reasoning ? reasoningOff() : { temperature: 0 }),
@@ -162,13 +195,14 @@ export class OpenAiCompatibleProvider {
     return extractJson(content);
   }
   async generateText({ messages, signal, temperature = 0.85 }) {
+    const normalized = normalizeMessages(messages);
     const reasoning = isReasoningModel(this.model);
     const response = await fetch(endpoint(this.baseUrl, "chat/completions"), {
       method: "POST",
       headers: getHeaders(this.baseUrl, this.apiKey),
       body: JSON.stringify({
         model: this.model,
-        messages,
+        messages: normalized,
         stream: false,
         ...(reasoning ? reasoningOff() : { temperature }),
       }),

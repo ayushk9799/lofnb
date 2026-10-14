@@ -22,7 +22,7 @@ export async function forgetMemory({relationshipId, userId, memoryId}) {
             await refreshDossier(relationship, session);
             await RelationshipModel.updateOne({_id: relationshipId, userId}, {
                 $max: {contextAfterSequence: latest?.sequenceNumber || 0},
-                $set: {userDossier: relationship.userDossier, relationshipSummary: "", stageEvidence: "", conversationState: {sequence: latest?.sequenceNumber || 0}, matchProfile: {}, ...(forgetName ? {introduction: {nameStatus: "unknown"}} : {})},
+                $set: {userDossier: relationship.userDossier, relationshipSummary: "", stageEvidence: "", conversationState: {sequence: latest?.sequenceNumber || 0}, turnState: {}, matchProfile: {}, ...(forgetName ? {introduction: {nameStatus: "unknown"}} : {})},
             }, {session});
         });
     });

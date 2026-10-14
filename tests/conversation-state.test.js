@@ -50,3 +50,13 @@ it("keeps authored paragraphs stable and limits bubbles without dropping content
     expect(createReplyBubbles("  ", "a1")).toEqual([]);
     expect(createReplyBubbles("```js\nconst x = 1;\n\nconsole.log(x);\n```", "a1")).toHaveLength(1);
 });
+
+it("archives replaced scenes and prevents a continued paraphrase from reviving an abandoned scene", () => {
+    const previous = {sequence: 2, scene: {description: "Making pasta", status: "abandoned", establishedAt: now, expiresAt: now}};
+    const continued = reduce(previous, {assistantEvidence: assistant.content, scene: {description: "Still making pasta", transition: "continue", status: "active", evidence: "I'm making pasta tonight."}});
+    expect(continued.scene.status).toBe("abandoned");
+    expect(continued.scene.expiresAt).toEqual(now);
+    const fresh = reduce(previous, {assistantEvidence: assistant.content, scene: {description: "A new dinner", transition: "start", status: "active", evidence: "I'm making pasta tonight."}});
+    expect(fresh.recentScenes[0].description).toBe("Making pasta");
+    expect(fresh.scene.status).toBe("active");
+});

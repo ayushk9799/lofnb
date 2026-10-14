@@ -43,13 +43,24 @@ const relationshipSchema = new Schema({
         commitment: { type: String, enum: ["unspecified", "friends", "partners"], default: "unspecified" },
         evidence: { type: String, maxlength: 1600 },
         sourceMessageIds: [{ type: Schema.Types.ObjectId, ref: "Message" }],
+        recentScenes: { type: [new Schema({description: String, status: String, endedAt: Date}, {_id: false})], default: undefined },
         scene: {
             description: { type: String, maxlength: 800 },
-            status: { type: String, enum: ["active", "resolved"] },
+            status: { type: String, enum: ["active", "resolved", "abandoned"] },
             establishedAt: Date,
             expiresAt: Date,
             sourceMessageId: { type: Schema.Types.ObjectId, ref: "Message" },
         },
+    },
+    turnState: {
+        sequence: Number,
+        topic: String,
+        engagement: { type: String, enum: ["engaged", "uncertain", "fading"] },
+        move: String,
+        wantsSpace: Boolean,
+        closedTopics: { type: [new Schema({ topic: String, evidence: String }, { _id: false })], default: undefined },
+        recentTopics: { type: [String], default: undefined },
+        plan: Schema.Types.Mixed,
     },
     matchProfile: {
         bio: { type: String, maxlength: 500 },
@@ -78,6 +89,10 @@ const relationshipSchema = new Schema({
     chatLease: { token: String, expiresAt: Date },
     lastMessageAt: { type: Date },
     lastInitiatedAt: { type: Date },
+    lastProactiveAttemptAt: Date,
+    lastViewedAt: Date,
+    proactiveCheckedAt: {type: Date, index: true},
+    returnVisit: {startedAt: Date, dueAt: Date, expiresAt: Date, sourceSequence: Number, absenceMs: Number, processedAt: Date},
     // When the match was decided. Kept separate from createdAt so a delayed
     // reveal can be modelled later without touching the document's birth.
     matchedAt: { type: Date },

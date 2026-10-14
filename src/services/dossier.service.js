@@ -52,16 +52,40 @@ export function dossierContext(dossier, now = new Date()) {
     }));
 }
 
+// Resolve relative plans against their original occurrence and timezone, never
+// the date a worker happens to extract or retrieve them.
+export function temporaryPlanTiming(text, occurredAt, timezone = "UTC") {
+  const match = /\b(tonight|today|tomorrow)\b/i.exec(text || "");
+  if (!match) return null;
+  const occurred = new Date(occurredAt);
+  let formatter;
+  try {
+    formatter = new Intl.DateTimeFormat("en-CA", { timeZone: timezone || "UTC", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  } catch { return temporaryPlanTiming(text, occurredAt, "UTC"); }
+  const parts = (date) => Object.fromEntries(formatter.formatToParts(date).map(part => [part.type, part.value]));
+  const local = parts(occurred);
+  const eventDate = new Date(Date.UTC(Number(local.year), Number(local.month) - 1, Number(local.day) + (match[1].toLowerCase() === "tomorrow" ? 1 : 0)));
+  const target = eventDate.getTime() + DAY;
+  let midnight = target;
+  for (let index = 0; index < 3; index++) {
+    const p = parts(new Date(midnight));
+    const rendered = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second));
+    midnight += target - rendered;
+  }
+  return { text: text.replace(/\b(tonight|today|tomorrow)\b/gi, `on ${eventDate.toISOString().slice(0, 10)}`), expiresAt: new Date(midnight) };
+}
+
 // User facts are promoted only with direct evidence. A joke additionally needs
 // the user's participation; an assistant inventing a joke is not shared history.
-export function groundedDossierMetadata(value, user, occurredAt) {
+export function groundedDossierMetadata(value, user, occurredAt, timezone = "UTC") {
   const supported = Boolean(value.evidence?.trim() && user?.content.includes(value.evidence));
   const category = supported && DOSSIER_CATEGORIES.includes(value.dossierCategory)
     && ["user_fact", "preference", "shared_event"].includes(value.type)
     ? value.dossierCategory : undefined;
   let expiresAt;
   if (category === "current_life") {
-    const proposed = value.expiresAt ? new Date(value.expiresAt) : null;
+    const timing = temporaryPlanTiming(value.text, occurredAt, timezone);
+    const proposed = timing?.expiresAt || (value.expiresAt ? new Date(value.expiresAt) : null);
     const cap = new Date(new Date(occurredAt).getTime() + 90 * DAY);
     expiresAt = proposed && Number.isFinite(proposed.getTime())
       ? new Date(Math.min(proposed.getTime(), cap.getTime()))

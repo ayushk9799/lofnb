@@ -18,9 +18,11 @@ const models = [CharacterModel, RelationshipModel, MessageModel, MemoryModel, Me
 const env = {NODE_ENV: "test", ALLOW_DEV_AUTH: true, CORS_ORIGIN: "http://localhost:5173", MEMORY_VECTOR_SEARCH_ENABLED: false};
 let database, character, relationship, app, server, baseUrl;
 
+const freshPlan = { topic: "fresh everyday thought", engagement: "uncertain", move: "share", reason: "A fresh contribution", opening: "a new observation", media: "text" };
 const llm = {
     name: "fake",
     model: "fake",
+    async generateJson() { return freshPlan; },
     async *streamChat() { yield "hello"; },
     async generateText({ messages }) {
         const lastMsg = messages[messages.length - 1]?.content || "";
@@ -59,6 +61,8 @@ beforeEach(async () => {
         persona: { summary: "Street photographer" },
         backstory: { summary: "Lives in Brooklyn" },
     });
+    const offset = 12 - new Date().getUTCHours();
+    await UserModel.create({userId: "dev_user", timezone: `Etc/GMT${offset >= 0 ? "-" : "+"}${Math.abs(offset)}`});
     relationship = await RelationshipModel.create({
         userId: "dev_user",
         characterId: character._id,
@@ -189,13 +193,14 @@ it("skips timed apologies after tone feedback without generating another message
     expect(await MessageModel.countDocuments({relationshipId: relationship._id})).toBe(2);
 });
 
-it("triggers idle_nudge after 1 minute of inactivity when user did not reply", async () => {
-    await lastTurn({ role: "assistant", content: "what are you working on today?", agoMs: 70_000 });
+it("offers a fresh contribution after thirty minutes, not a one-minute poke", async () => {
+    await lastTurn({ role: "assistant", content: "what are you working on today?", agoMs: 31 * 60_000 });
 
     let capturedMessages = [];
     const captureLlm = {
         name: "fake",
         model: "fake",
+        async generateJson() { return freshPlan; },
         async generateText({ messages }) {
             capturedMessages = messages;
             return "got busy?";
@@ -212,11 +217,11 @@ it("triggers idle_nudge after 1 minute of inactivity when user did not reply", a
 
     const systemPrompt = capturedMessages.map(m => m.content).join("\n");
     expect(systemPrompt).toContain("Idle Nudge Directive");
-    expect(systemPrompt).toContain("Relationship Stage: 'new'");
-    expect(systemPrompt).toContain("DO NOT USE CANNED TEMPLATES");
+    expect(systemPrompt).toContain("worthwhile fresh contribution");
+    expect(systemPrompt).toContain("Do not repeat the pending question");
 });
 
-it("injects stage-calibrated guidance and pending question into the directive", async () => {
+it("does not instruct the companion to pester about a pending question", async () => {
     await RelationshipModel.updateOne(
         { _id: relationship._id },
         { 
@@ -226,12 +231,13 @@ it("injects stage-calibrated guidance and pending question into the directive", 
             } 
         }
     );
-    await lastTurn({ role: "assistant", content: "do you play any games?", agoMs: 70_000 });
+    await lastTurn({ role: "assistant", content: "do you play any games?", agoMs: 31 * 60_000 });
 
     let capturedMessages = [];
     const captureLlm = {
         name: "fake",
         model: "fake",
+        async generateJson() { return freshPlan; },
         async generateText({ messages }) {
             capturedMessages = messages;
             return "did you get sucked into work?";
@@ -241,25 +247,72 @@ it("injects stage-calibrated guidance and pending question into the directive", 
     await processProactiveCheckIns({ llm: captureLlm });
 
     const systemPrompt = capturedMessages.map(m => m.content).join("\n");
-    expect(systemPrompt).toContain("Relationship Stage: 'friends'");
+    expect(systemPrompt).toContain("Legacy relationship label: friends");
     expect(systemPrompt).toContain("do you play any games?");
-    expect(systemPrompt).toContain("Playful peer dynamic");
+    expect(systemPrompt).toContain("Do not repeat the pending question");
 });
 
-it("allows idle_nudge during nighttime hours without quiet hours suppression", async () => {
-    await lastTurn({ role: "assistant", content: "what are you up to?", agoMs: 70_000 });
+it.each(["nighttime", "missing timezone"])("allows proactive messages with %s instead of enforcing quiet hours", async (caseName) => {
+    const offset = -new Date().getUTCHours();
+    const nightZone = offset < -12 ? `Etc/GMT-${24 + offset}` : `Etc/GMT+${Math.abs(offset)}`;
+    await UserModel.updateOne({userId: "dev_user"}, {$set: {timezone: caseName === "nighttime" ? nightZone : ""}});
+    await lastTurn({ role: "assistant", content: "what are you up to?", agoMs: 31 * 60_000 });
 
     const generation = vi.spyOn(llm, "generateText");
     await processProactiveCheckIns({ llm });
-    expect(generation).toHaveBeenCalled();
+    expect(generation).toHaveBeenCalledOnce();
     expect(await MessageModel.countDocuments({ relationshipId: relationship._id })).toBe(2);
 });
 
-it("does not initiate idle_nudge before the 1-minute threshold", async () => {
-    await lastTurn({ role: "assistant", content: "what are you up to?", agoMs: 30_000 });
+it("does not initiate idle_nudge after one minute", async () => {
+    await lastTurn({ role: "assistant", content: "what are you up to?", agoMs: 70_000 });
 
     const generation = vi.spyOn(llm, "generateText");
     await processProactiveCheckIns({ llm });
     expect(generation).not.toHaveBeenCalled();
     expect(await MessageModel.countDocuments({ relationshipId: relationship._id })).toBe(1);
+});
+
+it("attaches a locked photo to an idle nudge check-in when model tags photo", async () => {
+    await CharacterModel.updateOne({ _id: character._id }, {
+        $set: { gallery: [{ url: "https://example.com/rooftop.png", caption: "sunset view" }] },
+    });
+    await lastTurn({ role: "assistant", content: "what are you up to?", agoMs: 31 * 60_000 });
+
+    const photoLlm = {
+        name: "fake",
+        model: "fake",
+        async generateJson() { return {...freshPlan, media: "image", mediaReason: "Share the sunset"}; },
+        async generateText() {
+            return "thought you might like this view %%PHOTO scene|sunset view%%";
+        },
+    };
+    await processProactiveCheckIns({
+        llm: photoLlm,
+        storage: { upload: vi.fn() },
+    });
+
+    const messages = await MessageModel.find({ relationshipId: relationship._id }).sort({ sequenceNumber: 1 }).lean();
+    expect(messages).toHaveLength(2);
+    const initiated = messages[1];
+    expect(initiated.origin).toBe("initiated");
+    expect(initiated.content).toBe("thought you might like this view");
+    expect(initiated.mediaType).toBe("image");
+    expect(initiated.mediaUrl).toBe("https://example.com/rooftop.png");
+    expect(initiated.mediaMeta?.locked).toBe(true);
+    expect(initiated.mediaMeta?.unlockCost).toBe(99);
+});
+
+
+it("does not initiate when the planner finds nothing worthwhile or the user wants space", async () => {
+    await lastTurn({role: "assistant", agoMs: 31 * 60_000});
+    const generateText = vi.fn();
+    await processProactiveCheckIns({llm: {generateJson: async () => ({...freshPlan, move: "wait"}), generateText}});
+    expect(generateText).not.toHaveBeenCalled();
+    expect(await MessageModel.countDocuments()).toBe(1);
+    expect((await RelationshipModel.findById(relationship._id)).lastProactiveAttemptAt).toBeDefined();
+});
+it("never uses an expired scene alone as a callback reason", () => {
+    const now = Date.now();
+    expect(classifyProactiveTrigger({conversationState: {scene: {description: "old drink", status: "active", expiresAt: new Date(now - 1000)}}}, {role: "assistant", createdAt: new Date(now - 7 * 60 * 60_000)}, now)).toBeNull();
 });

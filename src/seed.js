@@ -12,9 +12,12 @@ const file = files[0] ? path.resolve(files[0]) : new URL("../data/characters.exa
 const records = JSON.parse(await readFile(file, "utf8"));
 await validateCharacterCatalog(records);
 if (args.includes("--check")) {
+    console.log(`Validated ${records.length} character records`);
 } else {
     const {env} = await import("./config/env.js");
     await connectDatabase(env.MONGODB_URI);
     try {
+        const result = await importCharacterCatalog(records, {update: args.includes("--update")});
+        console.log(`Imported ${result.total} characters (${result.inserted} new, ${result.updated} updated)`);
     } finally { await disconnectDatabase(); }
 }

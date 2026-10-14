@@ -1,11 +1,12 @@
 import mongoose from "mongoose";
 import { z } from "zod";
 import { MemoryModel } from "../models/memory.model.js";
+import { UserModel } from "../models/user.model.js";
 import { MessageModel } from "../models/message.model.js";
 import { RelationshipModel } from "../models/relationship.model.js";
 import { normalizeMemoryKey } from "../utils/tokens.js";
 import { conversationUpdateSchema, reduceConversationState, CONVERSATION_EXTRACTION_INSTRUCTIONS } from "./conversation-state.service.js";
-import { DOSSIER_CATEGORIES, DOSSIER_EXTRACTION_INSTRUCTIONS, groundedDossierMetadata, refreshDossier } from "./dossier.service.js";
+import { DOSSIER_CATEGORIES, DOSSIER_EXTRACTION_INSTRUCTIONS, groundedDossierMetadata, refreshDossier, temporaryPlanTiming } from "./dossier.service.js";
 const memoryValue = z.object({
     type: z.enum(["user_fact", "shared_event", "character_event", "preference", "lore_detail"]),
     key: z.string().trim().min(1).max(240), text: z.string().trim().min(1).max(2000),
@@ -40,7 +41,18 @@ const extraction = z.object({
         z.enum(["neutral", "happy", "playful", "sad", "annoyed"])
     ),
 });
-export function parseExtraction(raw) { return extraction.parse(raw); }
+export function parseExtraction(raw) {
+    if (!raw || typeof raw !== "object") return extraction.parse(raw);
+    const cleaned = { ...raw };
+    if (cleaned.conversationUpdate && typeof cleaned.conversationUpdate === "object") {
+        cleaned.conversationUpdate = { ...cleaned.conversationUpdate };
+        const scene = conversationUpdateSchema.shape.scene.safeParse(cleaned.conversationUpdate.scene);
+        if (!scene.success) delete cleaned.conversationUpdate.scene;
+        // Optional state proposals must not discard independently valid memories.
+        if (!conversationUpdateSchema.safeParse(cleaned.conversationUpdate).success) delete cleaned.conversationUpdate;
+    }
+    return extraction.parse(cleaned);
+}
 
 export async function extractAndStoreMemory({relationshipId, userMessageId, assistantMessageId, llm, embeddingProvider, signal}) {
     const [relationship, user, assistant] = await Promise.all([
@@ -73,6 +85,7 @@ export async function extractAndStoreMemory({relationshipId, userMessageId, assi
         {role: "user", content: JSON.stringify({previousRelationshipSummary: relationship.relationshipSummary, previousConversationState: relationship.conversationState, previousDossier: relationship.userDossier, existingMemories: existingMemories.map(({normalizedKey, text, dossierCategory}) => ({key: normalizedKey, text: text.slice(0, 500), dossierCategory})), occurredAt: assistant.createdAt, recentContext: recent.reverse().map(({role, content}) => ({role, content: content.slice(-2000)})), stage: relationship.stage, introduction: relationship.introduction,
             conversation: [...(user ? [{role: "user", content: user.content}] : []), {role: "assistant", content: assistant.content}]})},
     ]}));
+    const profile = await UserModel.findOne({ userId: relationship.userId }).select("timezone").lean();
     const values = [];
     for (const value of result.memories) {
         if (!user && !["character_event", "lore_detail"].includes(value.type)) continue;
@@ -100,16 +113,21 @@ export async function extractAndStoreMemory({relationshipId, userMessageId, assi
             const data = {relationshipId, userId: current.userId, characterId: current.characterId,
                 normalizedKey: value.normalizedKey, type: value.type, text: value.text,
                 confidence: value.confidence, importance: value.importance, status: "active",
-                ...groundedDossierMetadata(value, user, assistant.createdAt),
+                ...groundedDossierMetadata(value, user, assistant.createdAt, profile?.timezone),
                 dossierReviewedAt: new Date(),
                 dossierReviewVersion: 2,
                 sourceMessageIds: [userMessageId, assistantMessageId].filter(Boolean), sourceSequence: assistant.sequenceNumber,
             };
+            if (data.dossierCategory === "current_life") {
+                const timing = temporaryPlanTiming(data.text, assistant.createdAt, profile?.timezone);
+                if (timing) data.text = timing.text;
+            }
             if (previous) {
                 // A paraphrase of old context cannot replace an evidence-backed
                 // current fact. Real user corrections carry current evidence.
-                if (previous.dossierCategory && previous.text !== value.text && !data.evidence) continue;
-                if (previous.text === value.text) {
+                if (previous.dossierCategory && previous.text !== data.text && !data.evidence) continue;
+                if (previous.dossierCategory && !data.evidence) continue;
+                if (previous.text === data.text) {
                     previous.confidence = Math.max(previous.confidence, value.confidence);
                     previous.importance = Math.max(previous.importance, value.importance);
                     previous.sourceSequence = assistant.sequenceNumber;
@@ -129,7 +147,7 @@ export async function extractAndStoreMemory({relationshipId, userMessageId, assi
             } else await MemoryModel.create([{...data, embedding: value.embedding, embeddingModel: value.embedding ? embeddingProvider.model : undefined}], {session});
         }
         if ((current.summarySequence || 0) < assistant.sequenceNumber) {
-            if (result.relationshipSummary) current.relationshipSummary = result.relationshipSummary;
+            if (result.relationshipSummary && assistant.sequenceNumber >= (current.turnState?.sequence || 0)) current.relationshipSummary = result.relationshipSummary;
             current.mood = result.mood;
             current.summarySequence = assistant.sequenceNumber;
             const update = result.relationshipUpdate;
@@ -154,7 +172,10 @@ export async function extractAndStoreMemory({relationshipId, userMessageId, assi
                 current.introductionSequence = assistant.sequenceNumber;
             }
         }
-        current.conversationState = reduceConversationState(current.conversationState?.toObject?.() || current.toObject().conversationState || {}, result.conversationUpdate, {user, assistant, now: assistant.createdAt});
+        const guardedUpdate = result.conversationUpdate && assistant.sequenceNumber < (current.turnState?.sequence || 0)
+            ? { ...result.conversationUpdate, activeThread: undefined, pendingQuestion: undefined, sharedContext: undefined, scene: undefined }
+            : result.conversationUpdate;
+        current.conversationState = reduceConversationState(current.conversationState?.toObject?.() || current.toObject().conversationState || {}, guardedUpdate, {user, assistant, now: assistant.createdAt});
         for (const callback of result.callbacks) {
             if (!assistant.content.includes(callback.evidence)) continue;
             await MemoryModel.updateOne({relationshipId, status: "active", normalizedKey: normalizeMemoryKey(callback.key)},

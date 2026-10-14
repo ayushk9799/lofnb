@@ -55,6 +55,14 @@ try {
   console.warn("Mock cleanup warning:", err.message);
 }
 
+// Clear any orphaned chat leases left behind from previously interrupted runs in dev
+if (env.NODE_ENV !== "production") {
+  await RelationshipModel.updateMany(
+    { "chatLease.expiresAt": { $exists: true } },
+    { $unset: { chatLease: 1 } },
+  ).catch(() => undefined);
+}
+
 const app = createApp({
   env,
   llm,
@@ -67,10 +75,10 @@ const stopMemoryWorker = llm
   ? startMemoryWorker({ llm, embeddingProvider })
   : () => undefined;
 const stopProactiveWorker = llm
-  ? startProactiveWorker({ llm, env })
+  ? startProactiveWorker({ llm, env, mediaProvider, storage: app.locals.storage })
   : () => undefined;
 const stopOpenerWorker = llm
-  ? startOpenerWorker({ llm, env })
+  ? startOpenerWorker({ llm, env, mediaProvider, storage: app.locals.storage })
   : () => undefined;
 server.listen(env.PORT, () => {
   if (app.locals.webDistPath) {
@@ -97,3 +105,4 @@ async function shutdown(signal) {
 }
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGUSR2", () => void shutdown("SIGUSR2"));

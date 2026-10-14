@@ -1,3 +1,6 @@
+import { recordPresence } from "../services/presence.service.js";
+import { PresenceSessionModel } from "../models/presence-session.model.js";
+import { clearUnuploadedAvatar } from "../services/user-avatar.service.js";
 import { Router } from "express";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
@@ -34,6 +37,12 @@ const updateProfileSchema = z.object({
 
 export const profileRouter = Router();
 
+profileRouter.post("/presence", async (request, response) => {
+    const body = z.object({sessionId: z.string().min(8).max(80).regex(/^[a-zA-Z0-9_-]+$/), foreground: z.boolean(), relationshipId: z.string().regex(/^[a-f0-9]{24}$/i).nullish()}).parse(request.body);
+    await recordPresence({userId: request.auth.userId, ...body});
+    response.json({data: {success: true}});
+});
+
 async function cleanStorage(request, key) {
     const sanitizedUserId = request.auth.userId.replace(/[^a-zA-Z0-9_-]/g, "_");
     if (key && typeof key === "string" && key.startsWith(`users/${sanitizedUserId}/`)) {
@@ -58,6 +67,7 @@ profileRouter.get("/", async (request, response) => {
             onboardedAt: null,
         };
     }
+    await clearUnuploadedAvatar(profile);
     response.json({ data: profile });
 });
 
@@ -65,6 +75,15 @@ async function handleUpdate(request, response) {
     const body = updateProfileSchema.parse(request.body);
     const { completeOnboarding, ...profileFields } = body;
     const existing = await UserModel.findOne({ userId: request.auth.userId });
+    // Nonempty avatars must originate from the authenticated upload endpoint.
+    // Never accept provider pictures or arbitrary URLs from cached client state.
+    const avatarPrefix = `users/${request.auth.userId.replace(/[^a-zA-Z0-9_-]/g, "_")}/avatar/`;
+    if (body.avatarUrl && (
+        body.avatarUrl !== existing?.avatarUrl ||
+        !existing?.avatarKey?.startsWith(avatarPrefix)
+    )) {
+        throw new HttpError(400, "Upload your profile photo first", "INVALID_AVATAR");
+    }
     const minAge = body.minAge ?? existing?.minAge ?? 18;
     const maxAge = body.maxAge ?? existing?.maxAge ?? 60;
     if (minAge > maxAge) {
@@ -75,6 +94,7 @@ async function handleUpdate(request, response) {
         ...profileFields,
         userId: request.auth.userId,
     };
+    if (body.avatarUrl === "") $set.avatarKey = "";
     if (completeOnboarding && !existing?.onboardedAt) {
         $set.onboardedAt = new Date();
     }
@@ -192,6 +212,7 @@ profileRouter.delete("/", async (request, response) => {
     }
 
     // 6. Delete user profile record
+    await PresenceSessionModel.deleteMany({userId});
     await UserModel.deleteOne({ userId });
 
     response.json({

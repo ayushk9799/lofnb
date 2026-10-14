@@ -161,7 +161,7 @@ export async function verifyGoogleToken(idToken) {
             sub: data.sub,
             email: String(data.email_verified) === "true" ? (data.email || "") : "",
             name: data.name || data.given_name || "",
-            avatarUrl: data.picture || "",
+            avatarUrl: "",
         };
     } catch (error) {
         if (error instanceof HttpError) throw error;

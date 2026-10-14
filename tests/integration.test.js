@@ -294,7 +294,7 @@ it("attaches a generated photo when the model tags a scene, and strips the tag",
   expect(generateImage).toHaveBeenCalledOnce();
   expect(upload).toHaveBeenCalledOnce();
 });
-it("skips image generation in development and still locks a camera-roll photo", async () => {
+it("does not substitute an unrelated camera-roll photo for a new scene in development", async () => {
   const generateImage = vi.fn();
   await reply({
     env: { ...env, NODE_ENV: "development" },
@@ -322,11 +322,9 @@ it("skips image generation in development and still locks a camera-roll photo", 
   });
   const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
   expect(generateImage).not.toHaveBeenCalled();
-  expect(assistant.mediaType).toBe("image");
-  expect(assistant.mediaUrl).toBe("https://example.com/photo.png");
-  expect(assistant.mediaMeta.locked).toBe(true);
-  expect(assistant.mediaMeta.unlockCost).toBe(99);
-  expect(assistant.mediaMeta.source).toBe("generated");
+  expect(assistant.mediaType).toBeUndefined();
+  expect(assistant.generation.mediaDecision).toBe("text");
+  expect(assistant.content).toBe("couldn't get that photo through just now.");
 });
 it("reuses a gallery photo instead of generating when the description matches a caption", async () => {
   const generateImage = vi.fn();
@@ -587,7 +585,7 @@ it("writes a chat bubble after a text tool call with no content", async () => {
   expect(assistant.mediaType).toBeUndefined();
   expect(assistant.generation.mediaDecision).toBe("text");
 });
-it("keeps the text reply if photo generation fails", async () => {
+it("reports photo delivery failure without falsely marking a sent image", async () => {
   await reply({
     llm: {
       ...llm,
@@ -612,7 +610,7 @@ it("keeps the text reply if photo generation fails", async () => {
   });
   const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
   expect(assistant.status).toBe("completed");
-  expect(assistant.content).toBe("sanding it down.");
+  expect(assistant.content).toBe("couldn't get that photo through just now.");
   expect(assistant.mediaType).toBeUndefined();
 });
 it("attaches a photo if the text claims she sent one but she forgot the tool", async () => {
@@ -769,7 +767,7 @@ it("does not attach audio unless she called send_voice_note", async () => {
   expect(assistant.generation.mediaDecision).toBe("text");
   expect(synthesize).not.toHaveBeenCalled();
 });
-it("keeps the text reply if voice synthesis fails", async () => {
+it("reports voice delivery failure without falsely marking sent audio", async () => {
   await reply({
     llm: {
       ...llm,
@@ -794,7 +792,7 @@ it("keeps the text reply if voice synthesis fails", async () => {
   });
   const assistant = await MessageModel.findOne({ role: "assistant" }).lean();
   expect(assistant.status).toBe("completed");
-  expect(assistant.content).toBe("one sec");
+  expect(assistant.content).toBe("couldn't get that voice note through just now.");
   expect(assistant.mediaType).toBeUndefined();
 });
 
@@ -1336,4 +1334,36 @@ it("keeps newer dossier facts when a delayed extraction finishes and tracks actu
   const rel = await RelationshipModel.findById(relationship._id);
   expect(rel.userDossier.entries[0].text).toBe("Has a cat");
   expect((await MemoryModel.findById(memory._id)).lastMentionedAt).toBeInstanceOf(Date);
+});
+
+it.each(["image", "audio"])("sends a planned proactive %s in a fading conversation without a user media request", async (media) => {
+  const plan = {topic: "new everyday moment", engagement: "fading", move: "pivot", reason: "Old topic has run out", opening: "A fresh moment", media, mediaReason: "Show the fresh moment or add vocal warmth"};
+  let toolChoice;
+  const planner = {...llm, generateJson: vi.fn(async () => plan), async *streamChat(args) {
+    toolChoice = args.toolChoice;
+    yield "a little change of scenery";
+    yield {toolCalls: [{function: {name: media === "image" ? "send_photo" : "send_voice_note", arguments: JSON.stringify(media === "image" ? {what: "new park path at sunset"} : {spoken: "a little change of scenery"})}}]};
+  }};
+  const provider = {generateImage: vi.fn(async () => ({buffer: Buffer.from("photo"), mimeType: "image/png"})), synthesize: vi.fn(async () => ({buffer: Buffer.from("voice"), mimeType: "audio/mpeg"}))};
+  const events = [];
+  await reply({body: {content: "yeah", clientGems: 0}, llm: planner, mediaProvider: provider, storage: {upload: async () => ({url: "https://example.com/new", mimeType: media === "image" ? "image/png" : "audio/mpeg"})}, emit: (event, data) => events.push({event, data})});
+  const saved = await MessageModel.findOne({role: "assistant"}).lean();
+  expect(toolChoice.function.name).toBe(media === "image" ? "send_photo" : "send_voice_note");
+  expect(saved.mediaType).toBe(media);
+  expect(saved.mediaMeta.locked).toBe(true);
+  expect(events.find(event => event.event === "reply").data.mediaMeta.locked).toBe(true);
+  expect((await RelationshipModel.findById(relationship._id)).turnState.engagement).toBe("fading");
+});
+it("stores explicit topic dismissal immediately and keeps delayed extraction from rewinding it", async () => {
+  const older = await source();
+  await RelationshipModel.updateOne({_id: relationship._id}, {$set: {"turnState.topic": "detective guessing game"}});
+  await reply({body: {content: "I don’t want to talk about this darling", clientMessageId: "decline"}});
+  let saved = await RelationshipModel.findById(relationship._id).lean();
+  expect(saved.turnState.closedTopics[0].topic).toBe("detective guessing game");
+  const turnSequence = saved.turnState.sequence;
+  await extractAndStoreMemory({...older, llm: {generateJson: async () => ({...extracted, conversationUpdate: {activeThread: "detective guessing game", assistantEvidence: "hello"}})}});
+  saved = await RelationshipModel.findById(relationship._id).lean();
+  expect(saved.turnState.sequence).toBe(turnSequence);
+  expect(saved.turnState.closedTopics[0].topic).toBe("detective guessing game");
+  expect(saved.conversationState.activeThread).not.toBe("detective guessing game");
 });

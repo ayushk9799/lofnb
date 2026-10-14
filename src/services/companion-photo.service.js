@@ -301,10 +301,12 @@ export async function attachCompanionPhoto({
             });
             source = "generated";
         } else if (skipImageGeneration) {
-            const fallback = pickCameraRollPhoto(roll, query);
+            // Reusing unrelated media would fabricate visual evidence for the new
+            // scene. Only a caption-matched gallery photo can stand in for it.
+            const fallback = matchGalleryPhoto(roll, query);
             if (fallback?.url) {
                 stored = { url: fallback.url, key: fallback.key, mimeType: "image/jpeg" };
-                source = "generated";
+                source = "gallery";
                 galleryCaption = fallback.caption;
             }
         }

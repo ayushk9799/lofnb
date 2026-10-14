@@ -16,8 +16,8 @@ const createSwipe = z.object({
 // The companion texts first, a little while after the match, so the reward
 // for a like is her message rather than a poster. Only a few recent matches
 // get one so a burst of likes does not become a burst of pushes.
-export const OPENER_MIN_DELAY_MS = 15_000;
-export const OPENER_MAX_DELAY_MS = 180_000;
+export const OPENER_MIN_DELAY_MS = Number(process.env.OPENER_MIN_DELAY_MS) || 3_000;
+export const OPENER_MAX_DELAY_MS = Number(process.env.OPENER_MAX_DELAY_MS) || 10_000;
 export const OPENER_MAX_PENDING = 3;
 
 function openerDelayMs() {

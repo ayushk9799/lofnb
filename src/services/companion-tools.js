@@ -65,7 +65,7 @@ export const COMPANION_TOOLS = [
             name: "send_voice_note",
             strict: true,
             description:
-                "They want to hear you, in any wording: voice note, audio, record something, say it out loud. Attach a voice note. Never answer that with a photo.",
+                "They want to hear you, in any wording: voice note, audio, record something, say it out loud. Also use for a spontaneous voice note when tone or warmth enriches your current thought. Never answer a voice request with a photo.",
             parameters: {
                 type: "object",
                 properties: {
@@ -151,6 +151,7 @@ export function toolsForCompanionTurn(_userText = "", {
     model,
     canSendPhoto = true,
     canSendVoice = true,
+    plannedMedia,
 } = {}) {
     if (!modelSupportsTools(model)) {
         return { tools: undefined, toolChoice: undefined, forceSend: false };
@@ -162,7 +163,11 @@ export function toolsForCompanionTurn(_userText = "", {
     });
     return {
         tools,
-        toolChoice: "required",
+        toolChoice: plannedMedia === "image" && canSendPhoto
+            ? { type: "function", function: { name: "send_photo" } }
+            : plannedMedia === "audio" && canSendVoice
+                ? { type: "function", function: { name: "send_voice_note" } }
+                : "required",
         forceSend: false,
     };
 }

@@ -29,6 +29,32 @@ beforeEach(async () => {
 });
 
 describe("User Profile Endpoints", () => {
+    it("clears a legacy provider photo when the profile is fetched", async () => {
+        await UserModel.create({ userId: "legacy-google", avatarUrl: "https://lh3.googleusercontent.com/photo", authProvider: "google" });
+        const server = app.listen(0);
+        try {
+            const response = await fetch(`http://localhost:${server.address().port}/api/profile`, { headers: { "x-user-id": "legacy-google" } });
+            expect((await response.json()).data.avatarUrl).toBe("");
+            expect((await UserModel.findOne({ userId: "legacy-google" })).avatarUrl).toBe("");
+        } finally { server.close(); }
+    });
+
+    it("rejects cached provider URLs and preserves a user's uploaded photo", async () => {
+        const avatarUrl = "https://cdn.example.com/user-photo.jpg";
+        await UserModel.create({ userId: "avatar-user", avatarUrl, avatarKey: "users/avatar-user/avatar/photo.jpg" });
+        const server = app.listen(0);
+        try {
+            const url = `http://localhost:${server.address().port}/api/profile`;
+            const headers = { "x-user-id": "avatar-user", "Content-Type": "application/json" };
+            const rejected = await fetch(url, { method: "PATCH", headers, body: JSON.stringify({ avatarUrl: "https://lh3.googleusercontent.com/photo" }) });
+            expect(rejected.status).toBe(400);
+            const accepted = await fetch(url, { method: "PATCH", headers, body: JSON.stringify({ avatarUrl, bio: "hello" }) });
+            expect(accepted.status).toBe(200);
+            const fetched = await fetch(url, { headers });
+            expect((await fetched.json()).data.avatarUrl).toBe(avatarUrl);
+        } finally { server.close(); }
+    });
+
     it("returns default profile when none exists", async () => {
         const server = app.listen(0);
         const port = server.address().port;

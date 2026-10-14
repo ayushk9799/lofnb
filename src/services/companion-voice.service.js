@@ -113,7 +113,7 @@ export async function attachCompanionVoice({
                 mediaMeta,
             },
         });
-        return { ...stored, source: "generated" };
+        return { ...stored, mediaMeta, source: "generated" };
     } catch (error) {
         console.warn("[chat] companion voice skipped:", error?.message || error);
         return null;

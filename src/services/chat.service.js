@@ -20,8 +20,17 @@ export async function withChatLease(relationshipId, userId, work) {
     const relationship = await RelationshipModel.findOneAndUpdate({
         _id: relationshipId, userId,
         $or: [{"chatLease.expiresAt": {$lte: new Date()}}, {"chatLease.expiresAt": {$exists: false}}],
-    }, {$set: {chatLease: {token, expiresAt: new Date(Date.now() + 120_000)}}});
+    }, {$set: {chatLease: {token, expiresAt: new Date(Date.now() + 60_000)}}});
     if (!relationship) throw new HttpError(409, "A reply is already in progress. Please retry shortly.", "CHAT_BUSY");
+    let renewal;
+    const heartbeat = setInterval(() => {
+        if (renewal) return;
+        renewal = RelationshipModel.updateOne({ _id: relationshipId, "chatLease.token": token },
+            { $set: { "chatLease.expiresAt": new Date(Date.now() + 60_000) } })
+            .catch(() => console.warn("Chat lease renewal deferred"))
+            .finally(() => { renewal = undefined; });
+    }, 20_000);
+    heartbeat.unref();
     try {
         // An expired lease means the prior process could not finish this turn.
         await MessageModel.updateMany({relationshipId, status: "streaming"}, [{$set: {
@@ -29,6 +38,8 @@ export async function withChatLease(relationshipId, userId, work) {
         }}]);
         return await work(AbortSignal.timeout(90_000));
     } finally {
+        clearInterval(heartbeat);
+        await renewal;
         await RelationshipModel.updateOne({_id: relationshipId, "chatLease.token": token}, {$unset: {chatLease: 1}})
             .catch(() => console.warn("Chat lease will expire automatically"));
     }
@@ -209,17 +220,23 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
                 embeddingProvider, vectorEnabled: env.MEMORY_VECTOR_SEARCH_ENABLED,
                 vectorIndexName: env.MEMORY_VECTOR_INDEX, userTimezone: body.timezone, signal: generationSignal,
                 vectorMinScore: env.MEMORY_VECTOR_MIN_SCORE,
+                llm,
+                mediaCapabilities: {
+                    image: Boolean(storage && (mediaProvider?.generateImage || env?.NODE_ENV === "development")),
+                    audio: Boolean(mediaProvider?.synthesize && storage?.upload),
+                },
             });
             generationSignal.throwIfAborted();
             emit("seen", { userMessageId: user._id, userSequence: user.sequenceNumber, seenAt: seenAt.toISOString() });
             emit("message", {id: assistant._id, userId: user._id, userSequence: user.sequenceNumber, sequenceNumber: assistant.sequenceNumber});
             let toolCalls = [];
-            const canSendPhoto = canAffordPhoto(body.clientGems);
-            const canSendVoice = canAffordVoice(body.clientGems);
+            const canSendPhoto = canAffordPhoto(body.clientGems) || context.turnPlan?.media === "image";
+            const canSendVoice = canAffordVoice(body.clientGems) || context.turnPlan?.media === "audio";
             const mediaTurn = toolsForCompanionTurn(currentMessage, {
                 model: selectedLlm.model,
                 canSendPhoto,
                 canSendVoice,
+                plannedMedia: context.turnPlan?.media,
             });
             const consume = async (stream) => {
                 for await (const chunk of stream) {
@@ -253,12 +270,13 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             generationSignal.throwIfAborted();
             const fromTools = intentsFromToolCalls(toolCalls);
             const taggedPhoto = extractPhotoIntent(rawContent);
-            content = extractVoiceIntent(taggedPhoto.content).content
+            const taggedVoice = extractVoiceIntent(taggedPhoto.content);
+            content = taggedVoice.content
                 .replace(/\s*\[(?:sent|refused) a (?:photo|picture|voice note)\]/gi, "")
                 .trim();
             const resolved = resolveCompanionMedia({
                 toolPhoto: fromTools.photo || taggedPhoto.intent,
-                toolVoice: fromTools.voice,
+                toolVoice: fromTools.voice || taggedVoice.intent,
                 toolText: fromTools.text,
                 userText: currentMessage,
                 replyText: content,
@@ -280,19 +298,47 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             if (!content.trim() && !voiceIntent && !photoIntent) {
                 throw new Error("The model returned an empty response");
             }
+            const attachmentFields = {};
+            if (voiceIntent && !photoIntent) {
+                const voiceResult = await attachCompanionVoice({
+                    relationshipId, assistantMessage: assistant,
+                    replyText: content, intent: voiceIntent, mediaProvider, storage,
+                });
+                if (voiceResult?.url) {
+                    attachmentFields.mediaUrl = voiceResult.url;
+                    attachmentFields.mediaType = "audio";
+                    attachmentFields.mediaMeta = voiceResult.mediaMeta;
+                    if (voiceResult.key) attachmentFields.mediaKey = voiceResult.key;
+                }
+            } else if (photoIntent) {
+                const photoResult = await attachCompanionPhoto({
+                    relationshipId, assistantMessage: assistant, intent: photoIntent, mediaProvider, storage,
+                    skipImageGeneration: env?.ENABLE_IMAGE_GENERATION !== undefined
+                        ? !env.ENABLE_IMAGE_GENERATION
+                        : env?.NODE_ENV === "development",
+                });
+                if (photoResult?.url || photoResult?.mediaUrl) {
+                    attachmentFields.mediaUrl = photoResult.url || photoResult.mediaUrl;
+                    attachmentFields.mediaType = photoResult.mediaType || "image";
+                    attachmentFields.mediaMeta = photoResult.mediaMeta;
+                    if (photoResult.key || photoResult.mediaKey) {
+                        attachmentFields.mediaKey = photoResult.key || photoResult.mediaKey;
+                    }
+                }
+            }
+            if ((photoIntent || voiceIntent) && !attachmentFields.mediaUrl) {
+                content = photoIntent ? "couldn't get that photo through just now." : "couldn't get that voice note through just now.";
+                resolved.decision = "text";
+            }
             const bubbles = createReplyBubbles(content, assistant._id);
             const generationFields = {
                 content, status: "completed", completedAt: new Date(), memoryPending: true,
-                bubbles,
+                bubbles, ...attachmentFields,
                 "generation.latencyMs": Date.now() - startedAt, "generation.retrievedMemoryIds": context.retrievedMemoryIds,
                 "generation.mediaDecision": resolved.decision,
             };
-            if (!canSendPhoto && resolved.decision === "image_refused") {
-                generationFields["generation.mediaRefuseReason"] = "insufficient_gems";
-            }
-            if (!canSendVoice && resolved.decision === "audio_refused") {
-                generationFields["generation.mediaRefuseReason"] = "insufficient_gems";
-            }
+            if (!canSendPhoto && resolved.decision === "image_refused") generationFields["generation.mediaRefuseReason"] = "insufficient_gems";
+            if (!canSendVoice && resolved.decision === "audio_refused") generationFields["generation.mediaRefuseReason"] = "insufficient_gems";
 
             const isTest = process.env.NODE_ENV === "test";
             const interBubbleDelay = isTest
@@ -330,32 +376,6 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
 
             const saved = await MessageModel.updateOne({_id: assistant._id, status: "streaming"}, {$set: generationFields});
             if (!saved.modifiedCount) throw new Error("Reply lease expired");
-            if (voiceIntent && !photoIntent) {
-                const voiceResult = await attachCompanionVoice({
-                    relationshipId, assistantMessage: assistant,
-                    replyText: content, intent: voiceIntent, mediaProvider, storage,
-                });
-                if (voiceResult?.url) {
-                    generationFields.mediaUrl = voiceResult.url;
-                    generationFields.mediaType = "audio";
-                    if (voiceResult.key) generationFields.mediaKey = voiceResult.key;
-                }
-            } else if (photoIntent) {
-                const photoResult = await attachCompanionPhoto({
-                    relationshipId, assistantMessage: assistant, intent: photoIntent, mediaProvider, storage,
-                    skipImageGeneration: env?.ENABLE_IMAGE_GENERATION !== undefined
-                        ? !env.ENABLE_IMAGE_GENERATION
-                        : env?.NODE_ENV === "development",
-                });
-                if (photoResult?.url || photoResult?.mediaUrl) {
-                    generationFields.mediaUrl = photoResult.url || photoResult.mediaUrl;
-                    generationFields.mediaType = photoResult.mediaType || "image";
-                    generationFields.mediaMeta = photoResult.mediaMeta;
-                    if (photoResult.key || photoResult.mediaKey) {
-                        generationFields.mediaKey = photoResult.key || photoResult.mediaKey;
-                    }
-                }
-            }
             // The completed message is the durable outbox. A worker recovers a failed enqueue.
             await enqueueMemory(assistant).catch(() => console.warn("Memory scheduling deferred to recovery"));
             emit("reply", replyEnvelope({_id: assistant._id, ...generationFields}));

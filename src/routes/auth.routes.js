@@ -1,3 +1,4 @@
+import { clearUnuploadedAvatar } from "../services/user-avatar.service.js";
 import { Router } from "express";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
@@ -88,20 +89,20 @@ async function handleGoogleAuth(request, response) {
             authProvider: "google",
             providerId: verified.sub,
             name: verified.name || "Companion User",
-            avatarUrl: verified.avatarUrl || "",
+            avatarUrl: "",
             vibe: "Everyone",
             minAge: 18,
             maxAge: 60,
         });
     } else {
-        // Update email or avatar if previously empty
+        // Identity providers supply account details, never profile photos.
         let updated = false;
         if (!user.email && verified.email) { user.email = verified.email; updated = true; }
-        if (!user.avatarUrl && verified.avatarUrl) { user.avatarUrl = verified.avatarUrl; updated = true; }
         if (!user.name && verified.name) { user.name = verified.name; updated = true; }
         if (updated) await user.save();
     }
 
+    await clearUnuploadedAvatar(user);
     await ensureAccountIdentity(user);
     response.json(sessionResponse(user, { isNewUser }));
 }
@@ -135,6 +136,7 @@ async function handleAppleAuth(request, response) {
         if (updated) await user.save();
     }
 
+    await clearUnuploadedAvatar(user);
     await ensureAccountIdentity(user);
     response.json(sessionResponse(user, { isNewUser }));
 }
@@ -163,6 +165,7 @@ authRouter.get("/me", async (request, response) => {
     if (!user) {
         throw new HttpError(404, "User not found", "NOT_FOUND");
     }
+    await clearUnuploadedAvatar(user);
     await ensureAccountIdentity(user);
     response.json({ data: user.toObject() });
 });
