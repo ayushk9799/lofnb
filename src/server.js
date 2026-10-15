@@ -20,6 +20,7 @@ import { UserModel } from "./models/user.model.js";
 import { RelationshipModel } from "./models/relationship.model.js";
 import { MessageModel } from "./models/message.model.js";
 import { MemoryModel } from "./models/memory.model.js";
+import { logger } from "./utils/logger.js";
 
 const llm = createLlmProvider(env);
 const embeddingProvider = createEmbeddingProvider(env);
@@ -52,7 +53,7 @@ try {
    
   }
 } catch (err) {
-  console.warn("Mock cleanup warning:", err.message);
+  logger.warn({ err }, "Mock cleanup failed");
 }
 
 // Clear any orphaned chat leases left behind from previously interrupted runs in dev
@@ -81,15 +82,16 @@ const stopOpenerWorker = llm
   ? startOpenerWorker({ llm, env, mediaProvider, storage: app.locals.storage })
   : () => undefined;
 server.listen(env.PORT, () => {
-  if (app.locals.webDistPath) {
-  } else {
-  }
- 
+  logger.info(
+    { port: env.PORT, web: Boolean(app.locals.webDistPath), workers: Boolean(llm) },
+    "Lofn backend listening",
+  );
 });
 let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
+  logger.info({ signal }, "Shutting down");
 
   const drained = Promise.all([
     stopMemoryWorker(),

@@ -85,4 +85,12 @@ messageSchema.index({ relationshipId: 1, replyToMessageId: 1 }, {
     unique: true,
     partialFilterExpression: { replyToMessageId: { $type: "objectId" } },
 });
+// Background workers poll these every few seconds; without partial indexes
+// each poll scans the whole messages collection.
+messageSchema.index({ memoryPending: 1, status: 1 }, {
+    partialFilterExpression: { memoryPending: true },
+});
+messageSchema.index({ status: 1, updatedAt: 1 }, {
+    partialFilterExpression: { status: "streaming" },
+});
 export const MessageModel = model("Message", messageSchema);

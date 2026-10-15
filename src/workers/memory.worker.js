@@ -4,6 +4,7 @@ import { MessageModel } from "../models/message.model.js";
 import { RelationshipModel } from "../models/relationship.model.js";
 import { extractAndStoreMemory } from "../services/memory-extraction.service.js";
 import { enqueueMemory } from "../services/chat.service.js";
+import { logger } from "../utils/logger.js";
 
 export async function recoverChatWork() {
     for (const message of await MessageModel.find({status: "completed", memoryPending: true}).limit(50)) await enqueueMemory(message);
@@ -47,7 +48,7 @@ export function startMemoryWorker(dependencies) {
                 if (Date.now() - lastRecovery > 30_000) { await recoverChatWork(); lastRecovery = Date.now(); }
                 await processMemoryJob({...dependencies, signal: controller.signal});
             } catch (err) {
-                console.error("Memory worker database operation failed; retrying on next tick:", err.message);
+                logger.error({ err }, "Memory worker tick failed; retrying on next tick");
             }
             finally { pending = undefined; }
         })();

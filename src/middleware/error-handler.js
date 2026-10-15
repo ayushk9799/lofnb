@@ -1,6 +1,7 @@
 import { isValidObjectId } from "mongoose";
 import { ZodError } from "zod";
 import { HttpError } from "../utils/http-error.js";
+import { logger } from "../utils/logger.js";
 export function requireObjectId(value, label) {
     if (!isValidObjectId(value)) {
         throw new HttpError(400, `${label} is invalid`, "INVALID_ID");
@@ -37,7 +38,7 @@ export function errorHandler(error, _request, response, _next) {
         });
         return;
     }
-    console.error(`[${_request.method} ${_request.originalUrl}]`, error);
+    logger.error({ err: error, method: _request.method, url: _request.originalUrl }, "Unhandled request error");
     const exposeCause = process.env.NODE_ENV !== "production";
     response.status(500).json({
         error: {

@@ -3,6 +3,7 @@ import { UserModel } from "../models/user.model.js";
 import { withChatLease } from "../services/chat.service.js";
 import { getCompanionAvailability } from "../services/chat-quota.service.js";
 import { initiateScenario } from "../services/scenario.service.js";
+import { logger } from "../utils/logger.js";
 
 /**
  * Sends the companion's first text for freshly matched relationships whose
@@ -56,7 +57,7 @@ export async function processDueOpeners({ llm, env, signal, limit = 10, mediaPro
                 });
             });
         } catch (error) {
-            console.error(`[opener] failed for relationship ${relationship._id}:`, error.message);
+            logger.error({ err: error, relationshipId: String(relationship._id) }, "Opener failed");
             await RelationshipModel.updateOne(
                 { _id: relationship._id, openerSentAt: { $exists: false } },
                 { $set: { openerDueAt: new Date(Date.now() + 60_000) } },
@@ -74,7 +75,7 @@ export function startOpenerWorker(dependencies) {
             try {
                 await processDueOpeners({ ...dependencies, signal: controller.signal });
             } catch (error) {
-                console.error("Opener worker error:", error.message);
+                logger.error({ err: error }, "Opener worker tick failed");
             } finally {
                 pending = undefined;
             }

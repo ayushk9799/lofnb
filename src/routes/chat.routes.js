@@ -9,6 +9,7 @@ import { requireOwnedRelationship } from "../services/relationship.service.js";
 import { MessageModel } from "../models/message.model.js";
 import { ReportModel } from "../models/report.model.js";
 import { HttpError } from "../utils/http-error.js";
+import { logger } from "../utils/logger.js";
 const optionalPositiveNumber = (max) => z.preprocess((value) => {
     if (value == null || value === "") return undefined;
     const n = Number(value);
@@ -74,7 +75,7 @@ export function createChatRouter(dependencies) {
             });
             if (!res.writableEnded && !res.destroyed) res.end();
         } catch (error) {
-            console.error("[chat] generation failed", error?.message || error);
+            logger.error({ err: error, relationshipId: req.params.relationshipId }, "Chat generation failed");
             if (!opened && !res.writableEnded && !res.destroyed) return next(error);
             emit("error", {code: "GENERATION_FAILED", message: partial ? "The reply was interrupted. Your partial reply was kept." : "Unable to generate a reply. You can retry.", partial});
             if (!res.writableEnded && !res.destroyed) res.end();

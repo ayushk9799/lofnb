@@ -17,5 +17,8 @@ try {
             if (error.code === 26) return [];
             throw error;
         });
+        const declared = model.schema.indexes().length;
+        console.log(`${model.modelName}: ${actual.length} indexes in database, ${declared} declared in schema`);
     }
+    if (!process.argv.includes("--apply")) console.log("Dry run. Re-run with --apply (npm run db:migrate) to create missing indexes.");
 } finally { await disconnectDatabase(); }

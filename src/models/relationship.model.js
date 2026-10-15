@@ -112,5 +112,7 @@ const relationshipSchema = new Schema({
     nextSequence: { type: Number, default: 0, min: 0, select: false },
 }, { timestamps: true });
 relationshipSchema.index({ userId: 1, characterId: 1 }, { unique: true });
+// Proactive worker: sorts by proactiveCheckedAt and filters on lastMessageAt.
+relationshipSchema.index({ proactiveCheckedAt: 1, lastMessageAt: 1 });
 relationshipSchema.index({ openerDueAt: 1 }, { partialFilterExpression: { openerDueAt: { $exists: true } } });
 export const RelationshipModel = model("Relationship", relationshipSchema);

@@ -11,6 +11,7 @@ import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import { createServer } from "node:http";
 import { createApp } from "../src/app.js";
+import { logger } from "../src/utils/logger.js";
 import { CharacterModel } from "../src/models/character.model.js";
 import { RelationshipModel } from "../src/models/relationship.model.js";
 import { MessageModel } from "../src/models/message.model.js";
@@ -899,7 +900,7 @@ it("contains worker database failures without an unhandled rejection", async () 
   vi.spyOn(MemoryJobModel, "findOneAndUpdate").mockRejectedValue(
     new Error("offline"),
   );
-  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const log = vi.spyOn(logger, "error").mockImplementation(() => {});
   const stop = startMemoryWorker({ llm, pollIntervalMs: 10 });
   await new Promise((resolve) => setTimeout(resolve, 80));
   await stop();

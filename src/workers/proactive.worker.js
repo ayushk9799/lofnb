@@ -6,6 +6,7 @@ import { withChatLease } from "../services/chat.service.js";
 import { getCompanionAvailability } from "../services/chat-quota.service.js";
 import { presenceContext } from "../services/presence.service.js";
 import { initiateScenario } from "../services/scenario.service.js";
+import { logger } from "../utils/logger.js";
 
 export const LEFT_ON_READ_MS = 6 * 60 * 60_000;
 export const GONE_OFFLINE_MS = 6 * 60 * 60_000;
@@ -87,7 +88,13 @@ export async function processProactiveCheckIns({
     for (const relationship of candidates) {
         if (signal?.aborted) break;
         try {
-            await RelationshipModel.updateOne({_id: relationship._id}, {$set: {proactiveCheckedAt: new Date()}});
+            // Claim the candidate so parallel server instances split the batch
+            // instead of all evaluating the same relationships.
+            const claimed = await RelationshipModel.updateOne(
+                {_id: relationship._id, proactiveCheckedAt: relationship.proactiveCheckedAt ?? null},
+                {$set: {proactiveCheckedAt: new Date()}},
+            );
+            if (!claimed.modifiedCount) continue;
             const lastMessage = await MessageModel.findOne({ relationshipId: relationship._id })
                 .sort({ sequenceNumber: -1 })
                 .lean();
@@ -145,7 +152,7 @@ export async function processProactiveCheckIns({
                 // Another turn is already in progress; quietly skip without log spam
                 continue;
             }
-            console.error(`Proactive check-in failed for relationship ${relationship._id}:`, error.message);
+            logger.error({ err: error, relationshipId: String(relationship._id) }, "Proactive check-in failed");
             // Apply a backoff cooldown on failure so we don't hammer the relationship every 15 seconds
             await RelationshipModel.updateOne(
                 { _id: relationship._id },
@@ -164,7 +171,7 @@ export function startProactiveWorker(dependencies) {
             try {
                 await processProactiveCheckIns({ ...dependencies, signal: controller.signal });
             } catch (err) {
-                console.error("Proactive worker error:", err.message);
+                logger.error({ err }, "Proactive worker tick failed");
             } finally {
                 pending = undefined;
             }
