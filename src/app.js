@@ -20,8 +20,6 @@ import { storageRouter, uploadRouter } from "./routes/upload.routes.js";
 import { createWebhookRouter } from "./routes/webhook.routes.js";
 import { createCurrencyRouter } from "./routes/currency.routes.js";
 import { analyticsRouter } from "./routes/analytics.routes.js";
-import { pinoHttp } from "pino-http";
-import { logger } from "./utils/logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -100,15 +98,6 @@ export function createApp({
         "Authorization",
       ],
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    }),
-  );
-  app.use(
-    pinoHttp({
-      logger,
-      // Health checks and media fetches would drown out the useful lines.
-      autoLogging: { ignore: (req) => req.url === "/health" || req.url.startsWith("/api/storage") || req.url.startsWith("/character-assets") },
-      customLogLevel: (_req, res, err) => (err || res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info"),
-      customProps: (req) => (req.auth?.userId ? { userId: req.auth.userId } : {}),
     }),
   );
   app.use(express.json({ limit: "128kb" }));

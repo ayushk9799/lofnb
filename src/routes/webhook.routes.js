@@ -53,7 +53,6 @@ export function createWebhookRouter({ env }) {
         });
 
         if (!user) {
-            console.info(`[RevenueCat Webhook] User not found for RevenueCat customer IDs: ${customerIds.join(", ")}`);
             return response.status(200).json({
                 success: true,
                 processed: false,
@@ -128,7 +127,6 @@ export function createWebhookRouter({ env }) {
                     if (expiresAt) user.premiumExpiresAt = expiresAt;
                     user.revenueCatEventAt = eventAt;
                     await user.save();
-                    console.info(`[RevenueCat Webhook] Activated premium for user ${user.userId}`);
                     break;
 
                 case "CANCELLATION":
@@ -137,7 +135,6 @@ export function createWebhookRouter({ env }) {
                     if (expiresAt) user.premiumExpiresAt = expiresAt;
                     user.revenueCatEventAt = eventAt;
                     await user.save();
-                    console.info(`[RevenueCat Webhook] Recorded cancellation for user ${user.userId}`);
                     break;
 
                 case "EXPIRATION":
@@ -146,17 +143,14 @@ export function createWebhookRouter({ env }) {
                     if (expiresAt) user.premiumExpiresAt = expiresAt;
                     user.revenueCatEventAt = eventAt;
                     await user.save();
-                    console.info(`[RevenueCat Webhook] Expired subscription for user ${user.userId}`);
                     break;
 
                 case "BILLING_ISSUE":
                     // Do not revoke during a billing issue/grace period. EXPIRATION
                     // is the authoritative access-revocation event.
-                    console.info(`[RevenueCat Webhook] Recorded billing issue for user ${user.userId}`);
                     break;
 
                 default:
-                    console.info(`[RevenueCat Webhook] Ignored unhandled event type: ${type}`);
                     return response.status(200).json({
                         success: true,
                         processed: false,

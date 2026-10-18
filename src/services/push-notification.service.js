@@ -51,7 +51,6 @@ export function initializeFirebase() {
 
         if (!credential) {
             if (!initFailedLogged) {
-                console.info("[Push] Firebase Admin uninitialized: serviceAccountKey.json not found (push notifications will be enabled once configured).");
                 initFailedLogged = true;
             }
             return false;
@@ -59,7 +58,6 @@ export function initializeFirebase() {
 
         initializeApp({ credential });
         isInitialized = true;
-        console.info("[Push] Firebase Admin initialized successfully.");
         return true;
     } catch (error) {
         if (!initFailedLogged) {
