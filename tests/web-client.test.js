@@ -26,7 +26,6 @@ describe("Web client serving and SPA routing", () => {
     );
     fs.writeFileSync(
       path.join(assetsDir, "bundle.js"),
-      "console.log('test bundle');",
     );
 
     const env = {

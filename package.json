@@ -13,6 +13,7 @@
     "start": "node server.js",
     "seed": "node src/seed.js",
     "characters:import": "node src/seed.js",
+    "characters:translate": "node scripts/translate-characters.js",
     "test": "vitest run",
     "build": "node scripts/check.js",
     "build:web": "npm --prefix ../lofn-web run build",

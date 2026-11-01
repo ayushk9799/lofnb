@@ -12,6 +12,7 @@ import { unlockCompanionMedia } from "../services/companion-photo.service.js";
 import { CurrencyService } from "../services/currency.service.js";
 import { attachCompanionAvailability } from "../services/chat-quota.service.js";
 import { HttpError } from "../utils/http-error.js";
+import { localizeRelationshipCharacter, publicCharacterSelect } from "../services/character-locale.js";
 const createRelationship = z.object({
     characterId: z.string().min(1),
 });
@@ -31,7 +32,7 @@ export const relationshipsRouter = Router();
 relationshipsRouter.get("/", async (request, response) => {
     const relationships = await RelationshipModel.find({ userId: request.auth.userId })
         .sort({ lastMessageAt: -1, createdAt: -1 })
-        .populate("characterId", "slug name age avatarUrl photos ethnicity occupation location gallery persona.summary persona.personalityTraits persona.values persona.boundaries hobbies")
+        .populate("characterId", publicCharacterSelect(request.language))
         .lean();
     const relationshipsWithUnread = await Promise.all(
         relationships.map(async (rel) => {
@@ -48,7 +49,7 @@ relationshipsRouter.get("/", async (request, response) => {
         relationshipsWithUnread,
         request.app?.locals?.env,
     );
-    response.json({ data });
+    response.json({ data: data.map(row => localizeRelationshipCharacter(row, request.language)) });
 });
 relationshipsRouter.post("/", async (request, response) => {
     const body = createRelationship.parse(request.body);
@@ -63,19 +64,19 @@ relationshipsRouter.post("/", async (request, response) => {
             stage: "new",
             mood: "neutral",
         },
-    }, { new: true, upsert: true, setDefaultsOnInsert: true }).populate("characterId", "slug name age avatarUrl photos ethnicity occupation location gallery persona.summary persona.personalityTraits persona.values persona.boundaries hobbies");
+    }, { new: true, upsert: true, setDefaultsOnInsert: true }).populate("characterId", publicCharacterSelect(request.language));
     const payload = typeof relationship.toObject === "function" ? relationship.toObject() : relationship;
     const [data] = await attachCompanionAvailability(
         request.auth.userId,
         [payload],
         request.app?.locals?.env,
     );
-    response.status(201).json({ data });
+    response.status(201).json({ data: localizeRelationshipCharacter(data, request.language) });
 });
 relationshipsRouter.get("/:relationshipId", async (request, response) => {
     const relationshipId = requireObjectId(request.params.relationshipId, "relationshipId");
     const relationship = await requireOwnedRelationship(relationshipId, request.auth.userId);
-    await relationship.populate("characterId");
+    await relationship.populate("characterId", publicCharacterSelect(request.language));
     const payload = typeof relationship.toObject === "function"
         ? relationship.toObject()
         : relationship;
@@ -84,7 +85,7 @@ relationshipsRouter.get("/:relationshipId", async (request, response) => {
         [payload],
         request.app?.locals?.env,
     );
-    response.json({ data });
+    response.json({ data: localizeRelationshipCharacter(data, request.language) });
 });
 relationshipsRouter.post("/:relationshipId/read", async (request, response) => {
     const relationshipId = requireObjectId(request.params.relationshipId, "relationshipId");

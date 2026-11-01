@@ -1,3 +1,4 @@
+import { format as formatCliOutput } from 'node:util';
 import { connectDatabase, disconnectDatabase } from "../src/config/database.js";
 import { env } from "../src/config/env.js";
 import { CharacterModel } from "../src/models/character.model.js";
@@ -18,7 +19,7 @@ try {
             throw error;
         });
         const declared = model.schema.indexes().length;
-        console.log(`${model.modelName}: ${actual.length} indexes in database, ${declared} declared in schema`);
+        void process.stdout.write(formatCliOutput(`${model.modelName}: ${actual.length} indexes in database, ${declared} declared in schema`) + '\n');
     }
-    if (!process.argv.includes("--apply")) console.log("Dry run. Re-run with --apply (npm run db:migrate) to create missing indexes.");
+    if (!process.argv.includes("--apply")) void process.stdout.write(formatCliOutput("Dry run. Re-run with --apply (npm run db:migrate) to create missing indexes.") + '\n');
 } finally { await disconnectDatabase(); }

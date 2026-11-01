@@ -29,6 +29,7 @@ const chatBody = z.object({
         return Number.isFinite(n) && n >= 0 ? n : 0;
     }, z.number().int().min(0).default(0)),
     timezone: z.string().max(100).optional(),
+    clientPacing: z.boolean().optional(),
     mediaUrl: z.string().max(2048).optional(),
     mediaKey: z.string().max(500).optional(),
     mediaType: z.enum(["image", "audio"]).optional(),

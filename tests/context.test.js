@@ -1,6 +1,8 @@
 import { expect, it } from "vitest";
 import {
   buildCharacterPrompt,
+  conversationPhase,
+  initiatingDirective,
   isRelevantPastContext,
   selectRelevantCharacterLore,
 } from "../src/services/context.service.js";
@@ -110,7 +112,7 @@ it("omits media tools when the companion is initiating", () => {
   expect(prompt).not.toContain("send_photo");
 });
 
-it("treats a new match as glad she matched, not a one-word hey", () => {
+it("supports first contact independently of optional profile context", () => {
   const prompt = buildCharacterPrompt(
     { name: "Maya" },
     {},
@@ -127,8 +129,8 @@ it("treats a new match as glad she matched, not a one-word hey", () => {
     [],
     { name: "Sam", bio: "I build apps and cook badly", avatarUrl: "https://r2.lofnchat.com/a.jpg" },
   );
-  expect(prompt).toContain("You are glad you matched");
-  expect(prompt).toContain("offer a warm greeting and one easy opening");
+  expect(prompt).toContain("establish contact naturally");
+  expect(prompt).toContain("one easy opening is optional");
   expect(prompt).toContain("I build apps and cook badly");
   expect(prompt).toContain("you have no note on it");
   expect(prompt).not.toContain("His profile photo is attached");
@@ -161,4 +163,26 @@ it("injects older context only when the current topic connects to it", () => {
   expect(isRelevantPastContext(summary, "what do you remember about me?")).toBe(
     true,
   );
+});
+
+
+it("keeps unanswered assistant messages from establishing familiarity", () => {
+  const history = [{role: "assistant", content: "hey"}];
+  expect(conversationPhase({history})).toBe("first_contact");
+  expect(conversationPhase({history, currentMessage: "hi"})).toBe("early_exchange");
+  expect(conversationPhase({history: [...history, {role: "user", content: "hi"}]})).toBe("early_exchange");
+  expect(conversationPhase({history, relationship: {conversationState: {familiarity: "getting_familiar"}}})).toBe("ongoing");
+  expect(conversationPhase({history, initiating: true, triggerType: "return_to_chat", relationship: {conversationState: {familiarity: "familiar"}}})).toBe("returning");
+});
+
+it("makes opener context take precedence over biography and media", () => {
+  const directive = initiatingDirective("opener");
+  expect(directive).toContain("two strangers");
+  expect(directive).toContain("empty profile");
+  expect(directive).toContain("Do not attach unsolicited photos");
+  expect(directive).toContain("including paraphrases");
+  const prompt = buildCharacterPrompt({name: "Freja"});
+  expect(prompt).toContain("Profile knowledge is not conversation history");
+  expect(prompt).toContain("Familiarity, trust, romantic comfort and commitment are independent");
+  expect(prompt).not.toContain("Warmth, attraction, and flirtation are present right from the start");
 });

@@ -6,6 +6,7 @@ import { SwipeModel } from "../models/swipe.model.js";
 import { UserModel } from "../models/user.model.js";
 import { CharacterModel } from "../models/character.model.js";
 import { requireObjectId } from "../middleware/error-handler.js";
+import { localizeCharacter, publicCharacterProjection } from "../services/character-locale.js";
 
 const discoveryQuery = z.object({
   cursor: z.string().min(1).optional(),
@@ -27,6 +28,7 @@ export const discoveryRouter = Router();
 discoveryRouter.get("/", async (request, response) => {
   const { cursor, limit } = discoveryQuery.parse(request.query);
   const userId = request.auth.userId;
+  const language = request.language || "en";
   const profile = await UserModel.findOne({ userId })
     .select("vibe minAge maxAge interestedIn")
     .lean();
@@ -110,29 +112,12 @@ discoveryRouter.get("/", async (request, response) => {
     },
     { $match: { "userRelationship.0": { $exists: false } } },
     { $limit: limit + 1 },
-    {
-      $project: {
-        slug: 1,
-        name: 1,
-        age: 1,
-        gender: 1,
-        avatarUrl: 1,
-        photos: 1,
-        gallery: 1,
-        occupation: 1,
-        location: 1,
-        hobbies: 1,
-        "persona.summary": 1,
-        "persona.personalityTraits": 1,
-        "persona.values": 1,
-        "persona.boundaries": 1,
-      },
-    },
+    { $project: publicCharacterProjection(language) },
   );
 
   const rows = await CharacterModel.aggregate(pipeline);
   const hasMore = rows.length > limit;
-  const profiles = rows.slice(0, limit).map(formatCharacter);
+  const profiles = rows.slice(0, limit).map(row => formatCharacter(localizeCharacter(row, language)));
   response.json({
     data: {
       profiles,

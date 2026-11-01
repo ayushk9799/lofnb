@@ -96,7 +96,7 @@ describe("Push notification and FCM token management", () => {
         expect(result).toBe(false);
     });
 
-    it("registers and updates FCM token via /api/user/fcm-token", async () => {
+    it("registers an FCM token without classifying an unknown platform", async () => {
         const res = await fetch(`${baseUrl}/api/user/fcm-token`, {
             method: "POST",
             headers: {
@@ -117,7 +117,7 @@ describe("Push notification and FCM token management", () => {
         const user = await UserModel.findOne({ userId: testUserId });
         expect(user).toBeTruthy();
         expect(user.fcmToken).toBe("fcm_test_token_abc_123");
-        expect(user.platform).toBe("ios");
+        expect(user.platform).toBe("");
         expect(user.timezone).toBe("America/New_York");
         expect(user.deviceInfoUpdatedAt).toBeInstanceOf(Date);
     });

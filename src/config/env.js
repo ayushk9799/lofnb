@@ -14,7 +14,6 @@ const schema = z.object({
     .default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
   MONGODB_URI: z.string().min(1),
-  SESSION_SECRET: optionalString,
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   IDLE_NUDGE_MS: z.coerce.number().int().min(30 * 60_000).default(30 * 60_000),
   MATCH_RATE: z.coerce.number().min(0).max(1).default(1),

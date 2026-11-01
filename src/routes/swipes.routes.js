@@ -5,6 +5,7 @@ import { RelationshipModel } from "../models/relationship.model.js";
 import { SwipeModel } from "../models/swipe.model.js";
 import { requireObjectId } from "../middleware/error-handler.js";
 import { HttpError } from "../utils/http-error.js";
+import { localizeRelationshipCharacter, publicCharacterSelect } from "../services/character-locale.js";
 
 const createSwipe = z.object({
     characterId: z.string().min(1),
@@ -37,7 +38,13 @@ async function scheduleOpener(relationshipId, userId) {
     );
 }
 
-async function ensureRelationship(swipe, characterId, userId) {
+function localizedMatch(relationship, language) {
+    if (!relationship) return relationship;
+    const value = typeof relationship.toObject === "function" ? relationship.toObject() : relationship;
+    return localizeRelationshipCharacter(value, language);
+}
+
+async function ensureRelationship(swipe, characterId, userId, language) {
     if (swipe.outcome !== "matched") return null;
     const now = new Date();
     const existing = await RelationshipModel.exists({ userId, characterId });
@@ -53,10 +60,7 @@ async function ensureRelationship(swipe, characterId, userId) {
             },
         },
         { new: true, upsert: true, setDefaultsOnInsert: true },
-    ).populate(
-        "characterId",
-        "slug name age avatarUrl photos ethnicity occupation location gallery persona.summary persona.personalityTraits persona.values persona.boundaries hobbies",
-    );
+    ).populate("characterId", publicCharacterSelect(language));
     if (!swipe.relationshipId) {
         await SwipeModel.updateOne(
             { _id: swipe._id, relationshipId: { $exists: false } },
@@ -92,12 +96,12 @@ swipesRouter.post("/", async (request, response) => {
         ) {
             throw new HttpError(409, "clientSwipeId was already used for another swipe", "SWIPE_CONFLICT");
         }
-        const relationship = await ensureRelationship(previous, previous.characterId, userId);
+        const relationship = await ensureRelationship(previous, previous.characterId, userId, request.language);
         return response.json({
             data: {
                 swipeId: String(previous._id),
                 outcome: previous.outcome,
-                match: relationship,
+                match: localizedMatch(relationship, request.language),
             },
         });
     }
@@ -136,12 +140,12 @@ swipesRouter.post("/", async (request, response) => {
         });
     }
 
-    const relationship = await ensureRelationship(swipe, characterId, userId);
+    const relationship = await ensureRelationship(swipe, characterId, userId, request.language);
     response.status(201).json({
         data: {
             swipeId: String(swipe._id),
             outcome: swipe.outcome,
-            match: relationship,
+            match: localizedMatch(relationship, request.language),
         },
     });
 });

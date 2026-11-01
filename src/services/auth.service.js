@@ -1,33 +1,13 @@
 import {
-    createHmac,
     createPublicKey,
-    timingSafeEqual,
     verify as verifyCryptoSignature,
 } from "node:crypto";
 import { HttpError } from "../utils/http-error.js";
 
-const DEFAULT_SECRET = "lofn-secret-token-key-change-in-production-min32";
 const DEFAULT_GOOGLE_CLIENT_ID = "50299044849-tl8kc7h49rcbl5aicfs41eg49tf3bmkn.apps.googleusercontent.com";
 const DEFAULT_APPLE_CLIENT_ID = "com.thousandways.lofn";
 const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
 let appleKeyCache = { expiresAt: 0, keys: [] };
-
-function resolveSessionSecret(secret) {
-    const effectiveSecret = secret || process.env.SESSION_SECRET;
-    if (effectiveSecret?.length >= 32) return effectiveSecret;
-    if (process.env.NODE_ENV === "production") {
-        throw new Error("SESSION_SECRET must contain at least 32 characters in production");
-    }
-    return DEFAULT_SECRET;
-}
-
-function base64UrlEncode(str) {
-    return Buffer.from(str)
-        .toString("base64")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, "");
-}
 
 function base64UrlDecode(str) {
     str = str.replace(/-/g, "+").replace(/_/g, "/");
@@ -70,59 +50,6 @@ async function getAppleSigningKey(keyId) {
     const resolved = appleKeyCache.keys.find((key) => key.kid === keyId && key.kty === "RSA");
     if (!resolved) throw new HttpError(401, "Unknown Apple signing key", "INVALID_TOKEN");
     return createPublicKey({ key: resolved, format: "jwk" });
-}
-
-export function createSessionToken(payload, secret) {
-    const signingSecret = resolveSessionSecret(secret);
-    const header = base64UrlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const now = Date.now();
-    const body = base64UrlEncode(JSON.stringify({
-        ...payload,
-        iat: Math.floor(now / 1000),
-        exp: Math.floor(now / 1000) + 30 * 24 * 60 * 60, // 30 days
-    }));
-    const signature = createHmac("sha256", signingSecret)
-        .update(`${header}.${body}`)
-        .digest("base64")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, "");
-    return `${header}.${body}.${signature}`;
-}
-
-export function verifySessionToken(token, secret) {
-    const signingSecret = resolveSessionSecret(secret);
-    if (!token || typeof token !== "string") {
-        throw new HttpError(401, "Missing or invalid token", "UNAUTHORIZED");
-    }
-    const parts = token.split(".");
-    if (parts.length !== 3) {
-        throw new HttpError(401, "Malformed token", "INVALID_TOKEN");
-    }
-    const [header, body, signature] = parts;
-    const expectedSignature = createHmac("sha256", signingSecret)
-        .update(`${header}.${body}`)
-        .digest("base64")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, "");
-
-    const sigBuf = Buffer.from(signature);
-    const expBuf = Buffer.from(expectedSignature);
-    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
-        throw new HttpError(401, "Invalid token signature", "INVALID_TOKEN");
-    }
-
-    try {
-        const payload = JSON.parse(base64UrlDecode(body));
-        if (payload.exp && payload.exp * 1000 < Date.now()) {
-            throw new HttpError(401, "Token expired", "TOKEN_EXPIRED");
-        }
-        return payload;
-    } catch (err) {
-        if (err instanceof HttpError) throw err;
-        throw new HttpError(401, "Invalid token payload", "INVALID_TOKEN");
-    }
 }
 
 export async function verifyGoogleToken(idToken) {

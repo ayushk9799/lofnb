@@ -225,7 +225,6 @@ profileRouter.delete("/", async (request, response) => {
 
 const fcmTokenSchema = z.object({
     fcmToken: z.string().min(1).max(500),
-    platform: z.enum(["ios", "android", "web"]).optional(),
     timezone: z.string().max(100).optional(),
 });
 
@@ -235,7 +234,6 @@ profileRouter.post("/fcm-token", async (request, response) => {
         fcmToken: body.fcmToken,
         deviceInfoUpdatedAt: new Date(),
     };
-    if (body.platform) update.platform = body.platform;
     if (body.timezone) update.timezone = body.timezone;
 
     await UserModel.findOneAndUpdate(

@@ -1,33 +1,23 @@
 import { HttpError } from "../utils/http-error.js";
-import { verifySessionToken } from "../services/auth.service.js";
+import { UserModel } from "../models/user.model.js";
 
+// GTD-style identity: provider verification happens at sign-in; subsequent
+// requests select the account using its saved ID, not a session credential.
 export function createAuthMiddleware(env) {
-    return (request, _response, next) => {
-        const authHeader = request.header("authorization")?.trim();
-        if (authHeader && authHeader.startsWith("Bearer ")) {
-            const token = authHeader.slice(7).trim();
-            try {
-                const payload = verifySessionToken(token);
-                request.auth = { userId: payload.userId, email: payload.email };
-                next();
-                return;
-            } catch (err) {
-                next(err);
-                return;
+    return async (request, _response, next) => {
+        const userId = request.header("x-user-id")?.trim();
+        if (!userId || userId.length > 160) {
+            next(new HttpError(401, "A valid x-user-id header is required", "UNAUTHORIZED"));
+            return;
+        }
+        try {
+            if ((!env.ALLOW_DEV_AUTH || env.NODE_ENV === "production") && !(await UserModel.exists({ userId }))) {
+                throw new HttpError(404, "User not found", "NOT_FOUND");
             }
+            request.auth = { userId };
+            next();
+        } catch (error) {
+            next(error);
         }
-
-        if (!env.ALLOW_DEV_AUTH || env.NODE_ENV === "production") {
-            next(new HttpError(503, "No production authentication adapter is configured", "AUTH_NOT_CONFIGURED"));
-            return;
-        }
-
-        const value = request.header("x-user-id")?.trim();
-        if (!value || value.length > 160) {
-            next(new HttpError(401, "A valid x-user-id header or Bearer token is required", "UNAUTHORIZED"));
-            return;
-        }
-        request.auth = { userId: value };
-        next();
     };
 }

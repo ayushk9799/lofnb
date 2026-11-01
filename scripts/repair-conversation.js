@@ -1,3 +1,4 @@
+import { format as formatCliOutput } from 'node:util';
 import "dotenv/config";
 import mongoose from "mongoose";
 import { mkdtemp, writeFile } from "node:fs/promises";
@@ -66,14 +67,14 @@ try {
   const temporary = memories.filter(
     (memory) => memory.dossierCategory === "current_life",
   );
-  console.log(
+  void process.stdout.write(formatCliOutput(
     JSON.stringify({
       temporaryMemories: temporary.length,
       failedJobs: jobs.length,
       declinedTopic: "detective guessing game",
       apply: process.argv.includes("--apply"),
     }),
-  );
+  ) + '\n');
   if (process.argv.includes("--apply")) {
     const backupDirectory = await mkdtemp(
       join(tmpdir(), "lofn-conversation-repair-"),
@@ -197,13 +198,13 @@ try {
         $unset: { lockedAt: 1, lockToken: 1, lastError: 1 },
       },
     );
-    console.log(
+    void process.stdout.write(formatCliOutput(
       JSON.stringify({
         repaired: true,
         retriedJobs: result.modifiedCount,
         backupPath,
       }),
-    );
+    ) + '\n');
   }
 } finally {
   await mongoose.disconnect();

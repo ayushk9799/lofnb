@@ -3,7 +3,6 @@ import { MongoMemoryReplSet } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { UserModel } from "../src/models/user.model.js";
-import { createSessionToken, verifySessionToken } from "../src/services/auth.service.js";
 
 let database, app;
 const env = {
@@ -29,22 +28,6 @@ beforeEach(async () => {
     await UserModel.deleteMany({});
 });
 
-describe("Auth & Session Service", () => {
-    it("creates and verifies signed session tokens", () => {
-        const token = createSessionToken({ userId: "test-user-123", email: "test@example.com" });
-        expect(token).toBeTypeOf("string");
-        const payload = verifySessionToken(token);
-        expect(payload.userId).toBe("test-user-123");
-        expect(payload.email).toBe("test@example.com");
-    });
-
-    it("rejects tampered session tokens", () => {
-        const token = createSessionToken({ userId: "test-user-123" });
-        const tampered = token.slice(0, -5) + "abcde";
-        expect(() => verifySessionToken(tampered)).toThrow();
-    });
-});
-
 describe("Google & Apple Auth Endpoints", () => {
     it("handles Google sign-in and upserts user", async () => {
         const server = app.listen(0);
@@ -59,7 +42,8 @@ describe("Google & Apple Auth Endpoints", () => {
             const body = await res.json();
             expect(body.success).toBe(true);
             expect(body.data.userId).toBe("google_12345");
-            expect(body.data.token).toBeTypeOf("string");
+            expect(body.data.token).toBeUndefined();
+            expect(body.token).toBeUndefined();
             expect(body.data.user.email).toBe("12345@gmail.com");
             expect(body.data.user.accountId).toBeTypeOf("string");
             expect(body.data.user.revenueCatAppUserId).toBe(body.data.user.accountId);
@@ -170,20 +154,19 @@ describe("Google & Apple Auth Endpoints", () => {
         }
     });
 
-    it("authenticates requests with Bearer token", async () => {
+    it("loads the saved account using its user ID", async () => {
         const user = await UserModel.create({
             userId: "bearer_user_1",
             name: "Bearer User",
             email: "bearer@example.com",
             authProvider: "google",
         });
-        const token = createSessionToken({ userId: user.userId, email: user.email });
 
         const server = app.listen(0);
         const port = server.address().port;
         try {
             const res = await fetch(`http://localhost:${port}/api/auth/me`, {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: { "x-user-id": user.userId, Authorization: "Bearer expired-legacy-token" },
             });
             expect(res.status).toBe(200);
             const body = await res.json();
@@ -193,4 +176,67 @@ describe("Google & Apple Auth Endpoints", () => {
             server.close();
         }
     });
+});
+
+
+it("uses existing user IDs in production and rejects missing or unknown IDs", async () => {
+    await UserModel.create({userId: "id-only-user", name: "ID User"});
+    const productionApp = createApp({env: {...env, NODE_ENV: "production", ALLOW_DEV_AUTH: false}, llm: {}, embeddingProvider: {}});
+    const server = productionApp.listen(0);
+    const base = `http://localhost:${server.address().port}`;
+    try {
+        const accepted = await fetch(`${base}/api/profile`, {headers: {"x-user-id": "id-only-user", Authorization: "Bearer expired-legacy-token"}});
+        expect(accepted.status).toBe(200);
+        expect((await accepted.json()).data.userId).toBe("id-only-user");
+        expect((await fetch(`${base}/api/profile`)).status).toBe(401);
+        expect((await fetch(`${base}/api/profile`, {headers: {"x-user-id": "unknown-user"}})).status).toBe(404);
+    } finally { server.close(); }
+});
+
+it.each([
+    ['google', 'ios'],
+    ['google', 'android'],
+    ['apple', 'ios'],
+])('records %s sign-in platform %s independently of notifications', async (provider, platform) => {
+    const server = app.listen(0);
+    const url = `http://localhost:${server.address().port}/api/auth/${provider}`;
+    const identity = provider === 'google' ? {token: 'mock_google_platform'} : {idToken: 'mock_apple_platform'};
+    try {
+        const response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...identity, platform})});
+        expect(response.status).toBe(200);
+        const data = (await response.json()).data;
+        expect(data.user.platform).toBe(platform);
+        const saved = await UserModel.findOne({userId: data.userId}).lean();
+        expect(saved.platform).toBe(platform);
+        expect(saved.fcmToken).toBe('');
+        expect(saved.deviceInfoUpdatedAt).toBeUndefined();
+        // Old clients omitting platform must not erase the saved classification.
+        const legacy = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(identity)});
+        expect((await legacy.json()).data.user.platform).toBe(platform);
+        // Older FCM clients cannot overwrite the sign-in platform.
+        const push = await fetch(`http://localhost:${server.address().port}/api/profile/fcm-token`, {method: 'POST', headers: {'Content-Type': 'application/json', 'x-user-id': data.userId}, body: JSON.stringify({fcmToken: 'new-fcm-token', platform: 'web'})});
+        expect(push.status).toBe(200);
+        expect((await UserModel.findOne({userId: data.userId})).platform).toBe(platform);
+    } finally { server.close(); }
+});
+
+it('updates an existing Google account from iOS to Android at its next sign-in', async () => {
+    await UserModel.create({userId: 'google_switch-device', platform: 'ios', name: 'Existing'});
+    const server = app.listen(0);
+    try {
+        const response = await fetch(`http://localhost:${server.address().port}/api/auth/google`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({token: 'mock_google_switch-device', platform: 'android'})});
+        const data = (await response.json()).data;
+        expect(data.isNewUser).toBe(false);
+        expect(data.user.platform).toBe('android');
+        expect(await UserModel.countDocuments({userId: 'google_switch-device'})).toBe(1);
+    } finally { server.close(); }
+});
+
+it.each(['google', 'apple'])('rejects invalid platform during %s sign-in', async provider => {
+    const server = app.listen(0);
+    try {
+        const response = await fetch(`http://localhost:${server.address().port}/api/auth/${provider}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({token: 'mock_google_platform', idToken: 'mock_apple_platform', platform: 'google'})});
+        expect(response.status).toBe(400);
+        expect(await UserModel.countDocuments()).toBe(0);
+    } finally { server.close(); }
 });

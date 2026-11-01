@@ -8,10 +8,8 @@ import { MessageModel } from "../models/message.model.js";
 import { MemoryModel } from "../models/memory.model.js";
 import { SwipeModel } from "../models/swipe.model.js";
 import {
-    createSessionToken,
     verifyAppleToken,
     verifyGoogleToken,
-    verifySessionToken,
 } from "../services/auth.service.js";
 import { HttpError } from "../utils/http-error.js";
 
@@ -42,6 +40,7 @@ const googleAuthSchema = z.object({
     token: z.string().min(1).optional(),
     idToken: z.string().min(1).optional(),
     preferredLanguage: z.string().optional(),
+    platform: z.enum(["ios", "android", "web"]).optional(),
 }).refine(data => data.token || data.idToken, {
     message: "Google token is required (token or idToken)",
     path: ["token"],
@@ -52,21 +51,20 @@ const appleAuthSchema = z.object({
     displayName: z.string().optional(),
     email: z.string().optional(),
     preferredLanguage: z.string().optional(),
+    platform: z.enum(["ios", "android", "web"]).optional(),
 });
 
 function sessionResponse(user, { isNewUser }) {
     const userData = user.toObject();
-    const sessionToken = createSessionToken({ userId: user.userId, email: user.email });
     return {
         success: true,
         data: {
             user: userData,
-            token: sessionToken,
             userId: user.userId,
             isNewUser: Boolean(isNewUser),
         },
         user: userData,
-        token: sessionToken,
+        userId: user.userId,
         isNewUser: Boolean(isNewUser),
     };
 }
@@ -102,6 +100,10 @@ async function handleGoogleAuth(request, response) {
         if (updated) await user.save();
     }
 
+    if (body.platform && user.platform !== body.platform) {
+        user.platform = body.platform;
+        await user.save();
+    }
     await clearUnuploadedAvatar(user);
     await ensureAccountIdentity(user);
     response.json(sessionResponse(user, { isNewUser }));
@@ -136,6 +138,10 @@ async function handleAppleAuth(request, response) {
         if (updated) await user.save();
     }
 
+    if (body.platform && user.platform !== body.platform) {
+        user.platform = body.platform;
+        await user.save();
+    }
     await clearUnuploadedAvatar(user);
     await ensureAccountIdentity(user);
     response.json(sessionResponse(user, { isNewUser }));
@@ -148,18 +154,9 @@ authRouter.post("/apple", handleAppleAuth);
 authRouter.post("/apple/loginSignUp", handleAppleAuth);
 
 authRouter.get("/me", async (request, response) => {
-    let userId = request.auth?.userId;
-    if (!userId) {
-        const authHeader = request.header("authorization")?.trim();
-        if (authHeader && authHeader.startsWith("Bearer ")) {
-            const payload = verifySessionToken(authHeader.slice(7).trim());
-            userId = payload.userId;
-        } else if (request.header("x-user-id")) {
-            userId = request.header("x-user-id").trim();
-        }
-    }
-    if (!userId) {
-        throw new HttpError(401, "Not authenticated", "UNAUTHORIZED");
+    const userId = request.auth?.userId || request.header("x-user-id")?.trim();
+    if (!userId || userId.length > 160) {
+        throw new HttpError(401, "A valid x-user-id header is required", "UNAUTHORIZED");
     }
     const user = await UserModel.findOne({ userId });
     if (!user) {

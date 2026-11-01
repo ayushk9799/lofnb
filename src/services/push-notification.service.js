@@ -1,4 +1,5 @@
 import { getApps, initializeApp, cert } from "firebase-admin/app";
+import { serverText } from "../utils/localized-strings.js";
 import { getMessaging } from "firebase-admin/messaging";
 import fs from "node:fs";
 import path from "node:path";
@@ -107,18 +108,19 @@ export const buildChatPushMessage = ({
     avatarUrl,
     extraData = {},
     badgeCount = 1,
+    language = "en",
 }) => {
     const cleanRelationshipId = String(relationshipId || "");
-    const title = characterName || "New message";
+    const title = characterName || serverText("pushTitle", language);
 
     let body = (content || "").slice(0, 150);
     if (!body) {
         if (extraData?.mediaType === "image" || extraData?.hasPhoto) {
-            body = "📷 Sent you a photo";
+            body = serverText("pushPhoto", language);
         } else if (extraData?.mediaType === "audio" || extraData?.hasVoice) {
-            body = "🎙️ Sent you a voice note";
+            body = serverText("pushVoice", language);
         } else {
-            body = "Sent you a message";
+            body = serverText("pushMessage", language);
         }
     }
 
@@ -220,6 +222,7 @@ export const sendChatPushNotification = async ({
             avatarUrl,
             extraData,
             badgeCount,
+            language: user.language,
         });
 
         const messaging = getMessaging();

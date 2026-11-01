@@ -5,6 +5,7 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import { createAuthMiddleware } from "./middleware/auth.js";
+import { createLanguageMiddleware } from "./middleware/language.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { StorageService } from "./services/storage.service.js";
 import { authRouter } from "./routes/auth.routes.js";
@@ -123,6 +124,7 @@ export function createApp({
   // Analytics & product dashboard endpoints
   app.use("/api/analytics", analyticsRouter);
   app.use("/api", createAuthMiddleware(env));
+  app.use("/api", createLanguageMiddleware());
   app.use("/api/profile", profileRouter);
   app.use("/api/user/profile", profileRouter);
   app.use("/api/user", profileRouter);

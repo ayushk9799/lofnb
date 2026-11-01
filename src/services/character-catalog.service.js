@@ -3,7 +3,7 @@ import { CharacterModel } from "../models/character.model.js";
 
 const fields = new Set([
     "slug", "name", "age", "gender", "timezone", "promptTemplate", "dialogueExamples", "avatarUrl", "ethnicity",
-    "occupation", "location", "gallery", "photos", "persona", "conversationalStyle", "backstory", "hobbies", "matchProbability", "version",
+    "occupation", "location", "gallery", "photos", "persona", "conversationalStyle", "backstory", "hobbies", "matchProbability", "version", "translations",
 ]);
 
 // Character content is data: never execute uploaded definitions or look up files by slug.

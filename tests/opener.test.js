@@ -135,7 +135,7 @@ it("does not let clients request server-only triggers via /initiate", async () =
     }
 });
 
-it("attaches a locked photo to an opener when the model includes a photo tag", async () => {
+it("keeps first contact text only even when the model includes a photo tag", async () => {
     const [character] = await createCharacters(1);
     await CharacterModel.updateOne({ _id: character._id }, {
         $set: { gallery: [{ url: "https://example.com/gallery.png", caption: "morning coffee" }] },
@@ -158,13 +158,12 @@ it("attaches a locked photo to an opener when the model includes a photo tag", a
     const messages = await MessageModel.find({ relationshipId: data.match._id }).lean();
     expect(messages).toHaveLength(1);
     expect(messages[0].content).toBe("morning");
-    expect(messages[0].mediaType).toBe("image");
-    expect(messages[0].mediaUrl).toBe("https://example.com/gallery.png");
-    expect(messages[0].mediaMeta?.locked).toBe(true);
-    expect(messages[0].mediaMeta?.unlockCost).toBe(99);
+    expect(messages[0].mediaType).toBeUndefined();
+    expect(messages[0].mediaUrl).toBeUndefined();
+    expect(messages[0].generation.mediaDecision).toBe("text");
 });
 
-it("attaches a locked voice note to an opener when the model includes a voice tag", async () => {
+it("keeps first contact text only even when the model includes a voice tag", async () => {
     const [character] = await createCharacters(1);
     const { data } = await like(character, "voice-test");
     await RelationshipModel.updateOne({ _id: data.match._id }, { $set: { openerDueAt: new Date(Date.now() - 1000) } });
@@ -188,8 +187,8 @@ it("attaches a locked voice note to an opener when the model includes a voice ta
     const messages = await MessageModel.find({ relationshipId: data.match._id }).lean();
     expect(messages).toHaveLength(1);
     expect(messages[0].content).toBe("hey");
-    expect(messages[0].mediaType).toBe("audio");
-    expect(messages[0].mediaUrl).toBe("https://example.com/voice.mp3");
-    expect(messages[0].mediaMeta?.locked).toBe(true);
-    expect(messages[0].mediaMeta?.unlockCost).toBe(50);
+    expect(messages[0].mediaType).toBeUndefined();
+    expect(messages[0].mediaUrl).toBeUndefined();
+    expect(synthesize).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
 });

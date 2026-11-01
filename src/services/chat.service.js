@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { serverText } from "../utils/localized-strings.js";
 import { RelationshipModel } from "../models/relationship.model.js";
 import { MessageModel } from "../models/message.model.js";
 import { MemoryJobModel } from "../models/memory-job.model.js";
@@ -287,13 +288,13 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             const photoIntent = resolved.photo;
             const voiceIntent = resolved.voice;
             if (!content.trim() && fromTools.photo?.action === "refuse" && !mediaTurn.forceSend) {
-                content = fromTools.photo.reason || "not sending one.";
+                content = fromTools.photo.reason || serverText("photoDeclined", context.language);
             } else if (!content.trim() && !canSendPhoto && fromTools.photo?.action === "send") {
-                content = "not sending one.";
+                content = serverText("photoDeclined", context.language);
             } else if (!content.trim() && fromTools.voice?.action === "refuse") {
-                content = fromTools.voice.reason || "not sending a voice note.";
+                content = fromTools.voice.reason || serverText("voiceDeclined", context.language);
             } else if (!content.trim() && !canSendVoice && fromTools.voice?.action === "send") {
-                content = "not sending a voice note.";
+                content = serverText("voiceDeclined", context.language);
             }
             if (!content.trim() && !voiceIntent && !photoIntent) {
                 throw new Error("The model returned an empty response");
@@ -327,7 +328,7 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
                 }
             }
             if ((photoIntent || voiceIntent) && !attachmentFields.mediaUrl) {
-                content = photoIntent ? "couldn't get that photo through just now." : "couldn't get that voice note through just now.";
+                content = serverText(photoIntent ? "photoFailed" : "voiceFailed", context.language);
                 resolved.decision = "text";
             }
             const bubbles = createReplyBubbles(content, assistant._id);
@@ -340,11 +341,13 @@ export async function generateReply({relationshipId, userId, body, env, llm, vis
             if (!canSendPhoto && resolved.decision === "image_refused") generationFields["generation.mediaRefuseReason"] = "insufficient_gems";
             if (!canSendVoice && resolved.decision === "audio_refused") generationFields["generation.mediaRefuseReason"] = "insufficient_gems";
 
-            const isTest = process.env.NODE_ENV === "test";
-            const interBubbleDelay = isTest
+            // Clients that receive the whole stream at once (the mobile app)
+            // pace bubbles themselves; pausing here would only delay the reply.
+            const skipPacing = process.env.NODE_ENV === "test" || body.clientPacing === true;
+            const interBubbleDelay = skipPacing
                 ? 0
                 : (env?.INTER_BUBBLE_DELAY_MS !== undefined ? Number(env.INTER_BUBBLE_DELAY_MS) : 1000);
-            const tickDelay = isTest ? 0 : 20;
+            const tickDelay = skipPacing ? 0 : 20;
 
             for (let i = 0; i < bubbles.length; i++) {
                 const bubble = bubbles[i];

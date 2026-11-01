@@ -25,7 +25,6 @@ const TARGET_SLUGS = [
 ];
 
 async function main() {
-  console.log("🚀 Starting character upload and seed process...");
 
   if (!env.R2_ACCOUNT_ID || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_BUCKET_NAME) {
     throw new Error("Missing Cloudflare R2 configuration in environment variables");
@@ -56,8 +55,6 @@ async function main() {
   }
 
   // 1. Upload Images to Cloudflare R2
-  console.log("\n📤 1. Uploading character images to Cloudflare R2...");
-  let totalUploaded = 0;
 
   for (const slug of TARGET_SLUGS) {
     const charImgDir = path.join(IMAGES_SRC_DIR, slug);
@@ -66,7 +63,6 @@ async function main() {
       continue;
     }
 
-    console.log(`\n  📸 Processing images for [${slug}]...`);
     const files = fs.readdirSync(charImgDir).filter(f => f.endsWith(".png"));
 
     for (const filename of files) {
@@ -80,9 +76,8 @@ async function main() {
 
       process.stdout.write(`     Uploading ${filename} -> ${r2Key}... `);
       try {
-        const { publicUrl, sizeKb } = await uploadToR2(r2Key, filePath);
-        console.log(`✅ OK (${sizeKb} KB)`);
-        totalUploaded++;
+        await uploadToR2(r2Key, filePath);
+
       } catch (err) {
         console.error(`❌ FAILED: ${err.message}`);
         throw err;
@@ -90,22 +85,20 @@ async function main() {
     }
   }
 
-  console.log(`\n🎉 Uploaded ${totalUploaded} images to Cloudflare R2 successfully!`);
-
   // 2. Load and validate character JSONs
-  console.log("\n📦 2. Loading character profiles...");
+
   const newCharacters = [];
   for (const slug of TARGET_SLUGS) {
     const jsonPath = path.join(CHARACTERS_SRC_DIR, `${slug}.json`);
     const raw = await readFile(jsonPath, "utf8");
     const charData = JSON.parse(raw);
     newCharacters.push(charData);
-    console.log(`  Loaded profile: ${charData.name} (${charData.slug})`);
+
   }
 
   // 3. Merge with existing backend catalog (which contains Maya)
-  console.log("\n📋 3. Updating backend catalog (data/characters.example.json)...");
-  let existingCatalog = [];
+
+  let existingCatalog;
   try {
     existingCatalog = JSON.parse(await readFile(BACKEND_CATALOG_PATH, "utf8"));
   } catch {
@@ -126,34 +119,22 @@ async function main() {
 
   // Validate entire catalog with Lofnb's Mongoose validator
   await validateCharacterCatalog(mergedCatalog);
-  console.log(`  ✅ All ${mergedCatalog.length} characters passed Lofnb schema validation!`);
 
   await writeFile(BACKEND_CATALOG_PATH, JSON.stringify(mergedCatalog, null, 2) + "\n", "utf8");
-  console.log(`  💾 Saved updated catalog to ${BACKEND_CATALOG_PATH}`);
 
   // 4. Seed into MongoDB
-  console.log("\n🌱 4. Seeding characters into MongoDB...");
+
   await connectDatabase(env.MONGODB_URI);
 
   try {
-    const result = await importCharacterCatalog(mergedCatalog, { update: true, fillMissingPrompts: true });
-    console.log(`  ✅ Import completed: ${result.total} total characters (${result.inserted} inserted, ${result.updated} updated)`);
+    await importCharacterCatalog(mergedCatalog, { update: true, fillMissingPrompts: true });
 
     // Verify in database
-    const dbCharacters = await CharacterModel.find({}, "slug name gender occupation location avatarUrl gallery").lean();
-    console.log(`\n🔍 5. Verification - Active characters in MongoDB (${dbCharacters.length} total):`);
-    for (const [idx, c] of dbCharacters.entries()) {
-      console.log(`  [${idx + 1}/${dbCharacters.length}] ${c.name} (${c.slug}) | ${c.gender} | ${c.occupation} | ${c.location} | Gallery: ${c.gallery?.length || 0} photos`);
-      console.log(`      Avatar:  ${c.avatarUrl}`);
-      if (c.gallery?.length) {
-        console.log(`      Gallery: ${c.gallery[0].url}`);
-      }
-    }
+    await CharacterModel.find({}, "slug name gender occupation location avatarUrl gallery").lean();
   } finally {
     await disconnectDatabase();
   }
 
-  console.log("\n✨ All profiles successfully uploaded to Cloudflare R2 and seeded into Lofn!");
 }
 
 main().catch(err => {

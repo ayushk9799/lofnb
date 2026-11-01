@@ -1,4 +1,5 @@
 import { Schema, model } from "mongoose";
+import { SUPPORTED_LANGUAGES } from "../utils/language.js";
 
 const userSchema = new Schema({
     userId: { type: String, required: true, unique: true, index: true },
@@ -25,6 +26,8 @@ const userSchema = new Schema({
     minAge: { type: Number, default: 18, min: 18, max: 100 },
     maxAge: { type: Number, default: 60, min: 18, max: 100 },
     timezone: { type: String, maxlength: 100, default: "" },
+    // App language chosen on the phone (one of SUPPORTED_LANGUAGES). Companions reply in it.
+    language: { type: String, enum: SUPPORTED_LANGUAGES, default: "en" },
     fcmToken: { type: String, default: "", index: true },
     platform: { type: String, enum: ["ios", "android", "web", ""], default: "" },
     deviceInfoUpdatedAt: { type: Date },

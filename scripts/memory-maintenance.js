@@ -19,7 +19,7 @@ try {
   const collection = MemoryModel.collection;
   const indexes = await collection.listSearchIndexes().toArray();
   const existing = indexes.find(index => index.name === env.MEMORY_VECTOR_INDEX);
-  const count = await MemoryModel.countDocuments(missingEmbeddings(provider));
+  await MemoryModel.countDocuments(missingEmbeddings(provider));
   if (apply) {
     // Verify credentials/model/dimensions before changing the search index.
     await provider.embed("Memory search readiness check");
@@ -29,12 +29,12 @@ try {
       if (existing.type !== "vectorSearch") throw new Error("Configured index name belongs to a non-vector index");
       await collection.updateSearchIndex(env.MEMORY_VECTOR_INDEX, definition);
     }
-    const embedded = await backfillEmbeddings(provider, {progress: n => {if (n % 10 === 0) console.log(`Embedded ${n} memories`);}});
+    await backfillEmbeddings(provider);
     if (process.argv.includes("--dossiers")) {
       const llm = createLlmProvider(env);
       if (!llm) throw new Error("Configure a chat provider to review legacy dossier facts");
-      const reviewed = await backfillDossiers(llm, {signal: AbortSignal.timeout(600_000), progress: n => console.log(`Reviewed ${n} legacy memories`)});
+      await backfillDossiers(llm, {signal: AbortSignal.timeout(600_000)});
     }
   }
-  const status = await collection.listSearchIndexes(env.MEMORY_VECTOR_INDEX).toArray();
+  await collection.listSearchIndexes(env.MEMORY_VECTOR_INDEX).toArray();
 } finally { await mongoose.disconnect(); }

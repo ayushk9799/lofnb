@@ -1,4 +1,5 @@
 import { RelationshipModel } from "../models/relationship.model.js";
+import { serverText } from "../utils/localized-strings.js";
 import { MessageModel } from "../models/message.model.js";
 import { HttpError } from "../utils/http-error.js";
 import { allocateMessageSequence } from "./sequence.service.js";
@@ -72,9 +73,14 @@ export async function initiateScenario({
         photoIntent = { query: content.slice(0, 120) };
     }
 
+    if (triggerType === "opener") {
+        photoIntent = null;
+        voiceIntent = null;
+    }
     if (!context.availableMedia.image) photoIntent = null;
     if (!context.availableMedia.audio) voiceIntent = null;
-    if ((taggedPhoto.intent && !photoIntent) || (taggedVoice.intent && !voiceIntent)) return null;
+    if (triggerType !== "opener" && ((taggedPhoto.intent && !photoIntent) || (taggedVoice.intent && !voiceIntent))) return null;
+    if (triggerType === "opener" && !content) return null;
 
     const messageId = new Types.ObjectId();
     const saved = await MessageModel.create({
@@ -133,7 +139,7 @@ export async function initiateScenario({
     }
 
     if ((photoIntent || voiceIntent) && !saved.mediaUrl) {
-        saved.content = photoIntent ? "couldn't get that photo through just now." : "couldn't get that voice note through just now.";
+        saved.content = serverText(photoIntent ? "photoFailed" : "voiceFailed", context.language);
         saved.bubbles = createReplyBubbles(saved.content, saved._id);
     }
     content = saved.content;

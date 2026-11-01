@@ -3,6 +3,7 @@ import { z } from "zod";
 import { CharacterModel } from "../models/character.model.js";
 import { requireObjectId } from "../middleware/error-handler.js";
 import { HttpError } from "../utils/http-error.js";
+import { localizeCharacter, publicCharacterSelect } from "../services/character-locale.js";
 
 function formatCharacter(character) {
     const photos = Array.isArray(character.photos) && character.photos.length > 0
@@ -16,20 +17,21 @@ function formatCharacter(character) {
 
 export const charactersRouter = Router();
 
-charactersRouter.get("/", async (_request, response) => {
+charactersRouter.get("/", async (request, response) => {
     const characters = await CharacterModel.find()
         .sort({ name: 1 })
-        .select("slug name age avatarUrl photos gallery occupation location hobbies persona.summary persona.personalityTraits persona.values persona.boundaries")
+        .select(publicCharacterSelect(request.language))
         .lean();
-    response.json({ data: characters.map(formatCharacter) });
+    response.json({ data: characters.map(character => formatCharacter(localizeCharacter(character, request.language))) });
 });
 
 charactersRouter.get("/:characterId", async (request, response) => {
     const characterId = requireObjectId(String(request.params.characterId || ""), "characterId");
-    const character = await CharacterModel.findById(characterId).lean();
+    // Public fields only: prompts, backstory and dialogue examples stay on the server.
+    const character = await CharacterModel.findById(characterId).select(publicCharacterSelect(request.language)).lean();
     if (!character)
         throw new HttpError(404, "Character not found", "NOT_FOUND");
-    response.json({ data: formatCharacter(character) });
+    response.json({ data: formatCharacter(localizeCharacter(character, request.language)) });
 });
 
 // Add multiple photos to a character (like Telegram profile photos)

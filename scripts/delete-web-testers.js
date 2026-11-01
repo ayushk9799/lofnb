@@ -1,3 +1,4 @@
+import { format as formatCliOutput } from 'node:util';
 import { connectDatabase, disconnectDatabase } from "../src/config/database.js";
 import { env } from "../src/config/env.js";
 import { UserModel } from "../src/models/user.model.js";
@@ -29,7 +30,7 @@ try {
   const usersToDelete = await UserModel.find(webFilter).lean();
   const userIds = usersToDelete.map(u => u.userId);
 
-  console.log(`\nFound ${usersToDelete.length} web tester accounts matching safe criteria.`);
+  void process.stdout.write(formatCliOutput(`\nFound ${usersToDelete.length} web tester accounts matching safe criteria.`) + '\n');
 
   // Find associated relationships
   const relationships = await RelationshipModel.find({ userId: { $in: userIds } }).lean();
@@ -44,21 +45,21 @@ try {
     SubscriptionTransactionModel.countDocuments({ userId: { $in: userIds } })
   ]);
 
-  console.log("\nTarget data breakdown:");
-  console.log(`- Users: ${usersToDelete.length}`);
-  console.log(`- Relationships: ${relationships.length}`);
-  console.log(`- Messages: ${messagesCount}`);
-  console.log(`- Memories: ${memoriesCount}`);
-  console.log(`- Memory Jobs: ${memoryJobsCount}`);
-  console.log(`- Swipes: ${swipesCount}`);
-  console.log(`- Subscription Transactions: ${subsCount}`);
+  void process.stdout.write(formatCliOutput("\nTarget data breakdown:") + '\n');
+  void process.stdout.write(formatCliOutput(`- Users: ${usersToDelete.length}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Relationships: ${relationships.length}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Messages: ${messagesCount}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Memories: ${memoriesCount}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Memory Jobs: ${memoryJobsCount}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Swipes: ${swipesCount}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Subscription Transactions: ${subsCount}`) + '\n');
 
   if (!isConfirmed) {
-    console.log("\n[DRY RUN] No data was deleted. Pass --confirm to execute deletion.");
+    void process.stdout.write(formatCliOutput("\n[DRY RUN] No data was deleted. Pass --confirm to execute deletion.") + '\n');
     process.exit(0);
   }
 
-  console.log("\n[CONFIRMED] Executing deletion...");
+  void process.stdout.write(formatCliOutput("\n[CONFIRMED] Executing deletion...") + '\n');
   const [delJobs, delMemories, delMessages, delSwipes, delSubs, delRel, delUsers] = await Promise.all([
     MemoryJobModel.deleteMany({ relationshipId: { $in: relIds } }),
     MemoryModel.deleteMany({ $or: [{ userId: { $in: userIds } }, { relationshipId: { $in: relIds } }] }),
@@ -69,15 +70,15 @@ try {
     UserModel.deleteMany({ _id: { $in: usersToDelete.map(u => u._id) } })
   ]);
 
-  console.log("\nDeletion Summary:");
-  console.log(`- Users deleted: ${delUsers.deletedCount}`);
-  console.log(`- Relationships deleted: ${delRel.deletedCount}`);
-  console.log(`- Messages deleted: ${delMessages.deletedCount}`);
-  console.log(`- Memories deleted: ${delMemories.deletedCount}`);
-  console.log(`- Memory Jobs deleted: ${delJobs.deletedCount}`);
-  console.log(`- Swipes deleted: ${delSwipes.deletedCount}`);
-  console.log(`- Subscription Transactions deleted: ${delSubs.deletedCount}`);
-  console.log("\nSuccess: All web tester data has been cleaned up.");
+  void process.stdout.write(formatCliOutput("\nDeletion Summary:") + '\n');
+  void process.stdout.write(formatCliOutput(`- Users deleted: ${delUsers.deletedCount}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Relationships deleted: ${delRel.deletedCount}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Messages deleted: ${delMessages.deletedCount}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Memories deleted: ${delMemories.deletedCount}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Memory Jobs deleted: ${delJobs.deletedCount}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Swipes deleted: ${delSwipes.deletedCount}`) + '\n');
+  void process.stdout.write(formatCliOutput(`- Subscription Transactions deleted: ${delSubs.deletedCount}`) + '\n');
+  void process.stdout.write(formatCliOutput("\nSuccess: All web tester data has been cleaned up.") + '\n');
 } catch (err) {
   console.error("Deletion error:", err);
   process.exit(1);
