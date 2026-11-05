@@ -5,21 +5,21 @@
     "age": 26,
     "gender": "female",
     "timezone": "America/New_York",
-    "avatarUrl": "https://r2.lofnchat.com/characters/maya/avatar.png",
+    "avatarUrl": "https://r2.lofnchat.com/characters/maya/optimized/avatar.w768-q82-fe11364c5b9853b5.jpg",
     "ethnicity": "Japanese-American",
     "occupation": "Freelance photographer",
     "location": "Brooklyn, New York",
     "gallery": [
       {
-        "url": "https://r2.lofnchat.com/characters/maya/photos/0_dinner.png",
+        "url": "https://r2.lofnchat.com/characters/maya/optimized/photos/0_dinner.w768-q82-fe11364c5b9853b5.jpg",
         "caption": "Late dinner and good conversations"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/maya/photos/1_market.png",
+        "url": "https://r2.lofnchat.com/characters/maya/optimized/photos/1_market.w768-q82-4e9b6ca9909b812a.jpg",
         "caption": "Golden hour strolling through Brooklyn market"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/maya/photos/2_dumbo.png",
+        "url": "https://r2.lofnchat.com/characters/maya/optimized/photos/2_dumbo.w768-q82-1488441088c766f0.jpg",
         "caption": "Out testing my vintage 35mm lens in DUMBO"
       }
     ],
@@ -223,9 +223,9 @@
       }
     ],
     "photos": [
-      "https://r2.lofnchat.com/characters/maya/photos/0_dinner.png",
-      "https://r2.lofnchat.com/characters/maya/photos/1_market.png",
-      "https://r2.lofnchat.com/characters/maya/photos/2_dumbo.png"
+      "https://r2.lofnchat.com/characters/maya/optimized/photos/0_dinner.w768-q82-fe11364c5b9853b5.jpg",
+      "https://r2.lofnchat.com/characters/maya/optimized/photos/1_market.w768-q82-4e9b6ca9909b812a.jpg",
+      "https://r2.lofnchat.com/characters/maya/optimized/photos/2_dumbo.w768-q82-1488441088c766f0.jpg"
     ],
     "version": 2
   },
@@ -235,28 +235,28 @@
     "age": 26,
     "gender": "female",
     "timezone": "Europe/Paris",
-    "avatarUrl": "https://r2.lofnchat.com/characters/sienna/avatar.png",
+    "avatarUrl": "https://r2.lofnchat.com/characters/sienna/optimized/avatar.w768-q82-b2f9c27fba717321.jpg",
     "ethnicity": "French-Moroccan",
     "occupation": "Ceramic Sculptor & Architectural Restorer",
     "location": "Canal Saint-Martin, Paris",
     "gallery": [
       {
-        "url": "https://r2.lofnchat.com/characters/sienna/photos/0_pottery_studio.png",
+        "url": "https://r2.lofnchat.com/characters/sienna/optimized/photos/0_pottery_studio.w768-q82-4980ecf5cfc9740b.jpg",
         "caption": "Morning light in the studio before the clay sets"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/sienna/photos/1_canal_walk.png",
+        "url": "https://r2.lofnchat.com/characters/sienna/optimized/photos/1_canal_walk.w768-q82-b9815bb475f82f93.jpg",
         "caption": "Golden hour strolling past the locks along Canal Saint-Martin"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/sienna/photos/2_cat_fig.png",
+        "url": "https://r2.lofnchat.com/characters/sienna/optimized/photos/2_cat_fig.w768-q82-b2b0b841d8c01a68.jpg",
         "caption": "Fig making sure no actual work gets finished"
       }
     ],
     "photos": [
-      "https://r2.lofnchat.com/characters/sienna/photos/0_pottery_studio.png",
-      "https://r2.lofnchat.com/characters/sienna/photos/1_canal_walk.png",
-      "https://r2.lofnchat.com/characters/sienna/photos/2_cat_fig.png"
+      "https://r2.lofnchat.com/characters/sienna/optimized/photos/0_pottery_studio.w768-q82-4980ecf5cfc9740b.jpg",
+      "https://r2.lofnchat.com/characters/sienna/optimized/photos/1_canal_walk.w768-q82-b9815bb475f82f93.jpg",
+      "https://r2.lofnchat.com/characters/sienna/optimized/photos/2_cat_fig.w768-q82-b2b0b841d8c01a68.jpg"
     ],
     "hobbies": [
       "ceramic sculptor",
@@ -421,23 +421,23 @@
     "age": 27,
     "gender": "male",
     "timezone": "Asia/Tokyo",
-    "avatarUrl": "https://r2.lofnchat.com/characters/kaito/avatar.png",
+    "avatarUrl": "https://r2.lofnchat.com/characters/kaito/optimized/avatar.w768-q82-b2969f592200d9d3.jpg",
     "ethnicity": "Japanese",
     "occupation": "Analog Audio Engineer & Jazz Kissa Curator",
     "location": "Shimokitazawa, Tokyo",
     "gallery": [
       {
-        "url": "https://r2.lofnchat.com/characters/kaito/photos/0_vinyl_bar.png",
+        "url": "https://r2.lofnchat.com/characters/kaito/optimized/photos/0_vinyl_bar.w768-q82-1f10dd73b51c0543.jpg",
         "caption": "Spinning rare 1968 blue note vinyl on the turntable"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/kaito/photos/1_shiba_taro.png",
+        "url": "https://r2.lofnchat.com/characters/kaito/optimized/photos/1_shiba_taro.w768-q82-cb65e41b40158c05.jpg",
         "caption": "Taro supervising coffee time on the bench"
       }
     ],
     "photos": [
-      "https://r2.lofnchat.com/characters/kaito/photos/0_vinyl_bar.png",
-      "https://r2.lofnchat.com/characters/kaito/photos/1_shiba_taro.png"
+      "https://r2.lofnchat.com/characters/kaito/optimized/photos/0_vinyl_bar.w768-q82-1f10dd73b51c0543.jpg",
+      "https://r2.lofnchat.com/characters/kaito/optimized/photos/1_shiba_taro.w768-q82-cb65e41b40158c05.jpg"
     ],
     "hobbies": [
       "analog audio engineer",
@@ -602,23 +602,23 @@
     "age": 25,
     "gender": "female",
     "timezone": "Europe/Amsterdam",
-    "avatarUrl": "https://r2.lofnchat.com/characters/noa/avatar.png",
+    "avatarUrl": "https://r2.lofnchat.com/characters/noa/optimized/avatar.w768-q82-2d8f6473fbefbfda.jpg",
     "ethnicity": "Dutch",
     "occupation": "Urban Botanist & Rooftop Beekeeper",
     "location": "De Pijp, Amsterdam",
     "gallery": [
       {
-        "url": "https://r2.lofnchat.com/characters/noa/photos/0_rooftop_garden.png",
+        "url": "https://r2.lofnchat.com/characters/noa/optimized/photos/0_rooftop_garden.w768-q82-e17be19604dec011.jpg",
         "caption": "Checking on the rooftop wildflower hives at golden hour"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/noa/photos/1_canal_bike.png",
+        "url": "https://r2.lofnchat.com/characters/noa/optimized/photos/1_canal_bike.w768-q82-c8d9cc6fa363f01a.jpg",
         "caption": "Canal rides through De Pijp before the markets get busy"
       }
     ],
     "photos": [
-      "https://r2.lofnchat.com/characters/noa/photos/0_rooftop_garden.png",
-      "https://r2.lofnchat.com/characters/noa/photos/1_canal_bike.png"
+      "https://r2.lofnchat.com/characters/noa/optimized/photos/0_rooftop_garden.w768-q82-e17be19604dec011.jpg",
+      "https://r2.lofnchat.com/characters/noa/optimized/photos/1_canal_bike.w768-q82-c8d9cc6fa363f01a.jpg"
     ],
     "hobbies": [
       "urban botanist",
@@ -783,23 +783,23 @@
     "age": 29,
     "gender": "male",
     "timezone": "Europe/Rome",
-    "avatarUrl": "https://r2.lofnchat.com/characters/dante/avatar.png",
+    "avatarUrl": "https://r2.lofnchat.com/characters/dante/optimized/avatar.w768-q82-46f4c2b20de07df5.jpg",
     "ethnicity": "Italian",
     "occupation": "Vintage Watchmaker & Mechanical Restorer",
     "location": "Navigli, Milan",
     "gallery": [
       {
-        "url": "https://r2.lofnchat.com/characters/dante/photos/0_watch_workshop.png",
+        "url": "https://r2.lofnchat.com/characters/dante/optimized/photos/0_watch_workshop.w768-q82-e50bffca270319c4.jpg",
         "caption": "Restoring a 1952 chronograph balance wheel under the loupe"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/dante/photos/1_navigli_walk.png",
+        "url": "https://r2.lofnchat.com/characters/dante/optimized/photos/1_navigli_walk.w768-q82-9740f4908399470c.jpg",
         "caption": "Golden hour along Navigli after closing up the atelier"
       }
     ],
     "photos": [
-      "https://r2.lofnchat.com/characters/dante/photos/0_watch_workshop.png",
-      "https://r2.lofnchat.com/characters/dante/photos/1_navigli_walk.png"
+      "https://r2.lofnchat.com/characters/dante/optimized/photos/0_watch_workshop.w768-q82-e50bffca270319c4.jpg",
+      "https://r2.lofnchat.com/characters/dante/optimized/photos/1_navigli_walk.w768-q82-9740f4908399470c.jpg"
     ],
     "hobbies": [
       "vintage watchmaker",
@@ -964,23 +964,23 @@
     "age": 26,
     "gender": "female",
     "timezone": "America/Los_Angeles",
-    "avatarUrl": "https://r2.lofnchat.com/characters/lyra/avatar.png",
+    "avatarUrl": "https://r2.lofnchat.com/characters/lyra/optimized/avatar.w768-q82-50172c6926e46201.jpg",
     "ethnicity": "Singaporean-American",
     "occupation": "Indie Game Narrative Writer & Speculative Fiction Author",
     "location": "Mission District, San Francisco",
     "gallery": [
       {
-        "url": "https://r2.lofnchat.com/characters/lyra/photos/0_retro_arcade.png",
+        "url": "https://r2.lofnchat.com/characters/lyra/optimized/photos/0_retro_arcade.w768-q82-64a504b47ed7d65e.jpg",
         "caption": "Late night pinball breaks when writer's block hits"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/lyra/photos/1_rooftop_sunset.png",
+        "url": "https://r2.lofnchat.com/characters/lyra/optimized/photos/1_rooftop_sunset.w768-q82-fde92e6e30311e80.jpg",
         "caption": "Catching the golden hour glow over the Mission District"
       }
     ],
     "photos": [
-      "https://r2.lofnchat.com/characters/lyra/photos/0_retro_arcade.png",
-      "https://r2.lofnchat.com/characters/lyra/photos/1_rooftop_sunset.png"
+      "https://r2.lofnchat.com/characters/lyra/optimized/photos/0_retro_arcade.w768-q82-64a504b47ed7d65e.jpg",
+      "https://r2.lofnchat.com/characters/lyra/optimized/photos/1_rooftop_sunset.w768-q82-fde92e6e30311e80.jpg"
     ],
     "hobbies": [
       "indie game narrative writer",
@@ -1145,23 +1145,23 @@
     "age": 26,
     "gender": "female",
     "timezone": "Europe/Oslo",
-    "avatarUrl": "https://r2.lofnchat.com/characters/freja/avatar.png",
+    "avatarUrl": "https://r2.lofnchat.com/characters/freja/optimized/avatar.w768-q82-a1bdc50f6c685e12.jpg",
     "ethnicity": "Swedish",
     "occupation": "Marine Bioacoustics Researcher & Arctic Surfer",
     "location": "Lofoten, Norway",
     "gallery": [
       {
-        "url": "https://r2.lofnchat.com/characters/freja/photos/0_fjord_dock.png",
+        "url": "https://r2.lofnchat.com/characters/freja/optimized/photos/0_fjord_dock.w768-q82-89a06775467275d6.jpg",
         "caption": "Morning coffee on the rorbu dock before heading out on the boat"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/freja/photos/1_husky_fenris.png",
+        "url": "https://r2.lofnchat.com/characters/freja/optimized/photos/1_husky_fenris.w768-q82-dba101252054cfa9.jpg",
         "caption": "Fenris enjoying the fresh powder on the porch"
       }
     ],
     "photos": [
-      "https://r2.lofnchat.com/characters/freja/photos/0_fjord_dock.png",
-      "https://r2.lofnchat.com/characters/freja/photos/1_husky_fenris.png"
+      "https://r2.lofnchat.com/characters/freja/optimized/photos/0_fjord_dock.w768-q82-89a06775467275d6.jpg",
+      "https://r2.lofnchat.com/characters/freja/optimized/photos/1_husky_fenris.w768-q82-dba101252054cfa9.jpg"
     ],
     "hobbies": [
       "marine bioacoustics researcher",
@@ -1326,23 +1326,23 @@
     "age": 27,
     "gender": "female",
     "timezone": "America/Toronto",
-    "avatarUrl": "https://r2.lofnchat.com/characters/samira/avatar.png",
+    "avatarUrl": "https://r2.lofnchat.com/characters/samira/optimized/avatar.w768-q82-61eb6da678d0594c.jpg",
     "ethnicity": "French-Algerian",
     "occupation": "Analog Synthesizer Restorer & Tape Musician",
     "location": "Mile End, Montreal",
     "gallery": [
       {
-        "url": "https://r2.lofnchat.com/characters/samira/photos/0_synth_bench.png",
+        "url": "https://r2.lofnchat.com/characters/samira/optimized/photos/0_synth_bench.w768-q82-3e1492d31940553e.jpg",
         "caption": "Testing cassette tape loops at 2am"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/samira/photos/1_mile_end_night.png",
+        "url": "https://r2.lofnchat.com/characters/samira/optimized/photos/1_mile_end_night.w768-q82-d093c1ffcb78df2c.jpg",
         "caption": "2am hot bagel run in the Montreal snow"
       }
     ],
     "photos": [
-      "https://r2.lofnchat.com/characters/samira/photos/0_synth_bench.png",
-      "https://r2.lofnchat.com/characters/samira/photos/1_mile_end_night.png"
+      "https://r2.lofnchat.com/characters/samira/optimized/photos/0_synth_bench.w768-q82-3e1492d31940553e.jpg",
+      "https://r2.lofnchat.com/characters/samira/optimized/photos/1_mile_end_night.w768-q82-d093c1ffcb78df2c.jpg"
     ],
     "hobbies": [
       "analog synthesizer restorer",
@@ -1507,23 +1507,23 @@
     "age": 28,
     "gender": "male",
     "timezone": "America/Mexico_City",
-    "avatarUrl": "https://r2.lofnchat.com/characters/julian/avatar.png",
+    "avatarUrl": "https://r2.lofnchat.com/characters/julian/optimized/avatar.w768-q82-081ccd61acb723e6.jpg",
     "ethnicity": "Mexican",
     "occupation": "Culinary Historian & Aperitivo Bar Founder",
     "location": "Roma Norte, Mexico City",
     "gallery": [
       {
-        "url": "https://r2.lofnchat.com/characters/julian/photos/0_mezcal_cellar.png",
+        "url": "https://r2.lofnchat.com/characters/julian/optimized/photos/0_mezcal_cellar.w768-q82-4668a1522fa4ec42.jpg",
         "caption": "Sampling wild clay-pot mezcal from Oaxaca"
       },
       {
-        "url": "https://r2.lofnchat.com/characters/julian/photos/1_mercado_spices.png",
+        "url": "https://r2.lofnchat.com/characters/julian/optimized/photos/1_mercado_spices.w768-q82-fa7b98565ef3da39.jpg",
         "caption": "Sunday morning botanical and herb haul in Mercado Medellín"
       }
     ],
     "photos": [
-      "https://r2.lofnchat.com/characters/julian/photos/0_mezcal_cellar.png",
-      "https://r2.lofnchat.com/characters/julian/photos/1_mercado_spices.png"
+      "https://r2.lofnchat.com/characters/julian/optimized/photos/0_mezcal_cellar.w768-q82-4668a1522fa4ec42.jpg",
+      "https://r2.lofnchat.com/characters/julian/optimized/photos/1_mercado_spices.w768-q82-fa7b98565ef3da39.jpg"
     ],
     "hobbies": [
       "culinary historian",
